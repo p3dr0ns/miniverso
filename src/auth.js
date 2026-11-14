@@ -1,48 +1,99 @@
-import { createClient } from "@supabase/supabase-js";
+const listeners = new Set();
+let currentSession = null;
+let expiryTimer;
+let sessionRevision = 0;
+let sessionQuery = 0;
+let channel = null;
+try {
+  if (typeof window !== "undefined" && typeof BroadcastChannel === "function") channel = new BroadcastChannel("miniverso-auth");
+} catch {
+  // A sincronização entre abas é opcional quando o navegador a restringe.
+}
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+async function authRequest(path, { method = "GET", body } = {}) {
+  let response;
+  try {
+    response = await fetch(`/api/auth/${path}`, {
+      method,
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: body ? { "Content-Type": "application/json", Accept: "application/json" } : { Accept: "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {})
+    });
+  } catch {
+    throw new Error("Não foi possível conectar ao serviço de acesso. Confira sua conexão e tente novamente.");
+  }
+  if (!response.headers.get("Content-Type")?.includes("application/json")) {
+    throw new Error("O serviço de acesso ainda não está disponível neste endereço.");
+  }
+  let data;
+  try {
+    data = await response.json();
+    if (!data || typeof data !== "object") throw new Error();
+  } catch {
+    throw new Error("O serviço de acesso retornou uma resposta incompleta. Tente novamente.");
+  }
+  if (!response.ok) {
+    const error = new Error(data.message || "Não foi possível concluir o acesso.");
+    error.code = data.code;
+    error.retryAfter = Number(data.retryAfter || response.headers.get("Retry-After")) || 0;
+    throw error;
+  }
+  return data;
+}
 
-export const authConfigured = Boolean(supabaseUrl && supabasePublishableKey);
+function updateSession(session, broadcast = false) {
+  sessionRevision += 1;
+  currentSession = session;
+  clearTimeout(expiryTimer);
+  if (session?.expires_at) {
+    const remaining = session.expires_at * 1000 - Date.now();
+    expiryTimer = setTimeout(() => updateSession(null), Math.max(0, Math.min(remaining, 2147483647)));
+  }
+  listeners.forEach((listener) => listener(session));
+  if (broadcast) channel?.postMessage("session-changed");
+}
 
-const supabase = authConfigured
-  ? createClient(supabaseUrl, supabasePublishableKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-    })
-  : null;
-
-function requireClient() {
-  if (!supabase) throw new Error("A autenticação ainda não foi configurada.");
-  return supabase;
+async function refreshSession() {
+  const revision = sessionRevision;
+  const query = ++sessionQuery;
+  try {
+    const { session } = await authRequest("session");
+    if (query === sessionQuery && revision === sessionRevision && (session?.user?.id !== currentSession?.user?.id || session?.expires_at !== currentSession?.expires_at)) {
+      updateSession(session);
+    }
+  } catch {
+    // Falhas temporárias de rede não apagam uma sessão ainda válida.
+  }
 }
 
 export async function getCurrentSession() {
-  const { data, error } = await requireClient().auth.getSession();
-  if (error) throw error;
-  return data.session;
+  const revision = sessionRevision;
+  const query = ++sessionQuery;
+  const { session } = await authRequest("session");
+  if (query === sessionQuery && revision === sessionRevision) updateSession(session);
+  return currentSession;
 }
 
 export async function sendEmailOtp(email) {
-  const { error } = await requireClient().auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true }
-  });
-  if (error) throw error;
+  return authRequest("request-code", { method: "POST", body: { email } });
 }
 
-export async function verifyEmailOtp(email, token) {
-  const { data, error } = await requireClient().auth.verifyOtp({ email, token, type: "email" });
-  if (error) throw error;
-  return data.session;
+export async function verifyEmailOtp(email, code) {
+  const { session } = await authRequest("verify-code", { method: "POST", body: { email, code } });
+  updateSession(session, true);
+  return session;
 }
 
 export async function signOut() {
-  const { error } = await requireClient().auth.signOut();
-  if (error) throw error;
+  await authRequest("logout", { method: "POST", body: {} });
+  updateSession(null, true);
 }
 
 export function onAuthStateChange(callback) {
-  if (!supabase) return () => {};
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => callback(session));
-  return () => data.subscription.unsubscribe();
+  listeners.add(callback);
+  return () => listeners.delete(callback);
 }
+
+if (typeof window !== "undefined") window.addEventListener("focus", refreshSession);
+if (channel) channel.onmessage = refreshSession;

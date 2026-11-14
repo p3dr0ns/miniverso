@@ -1,5 +1,5 @@
 import "./style.css";
-import { authConfigured, getCurrentSession, onAuthStateChange, sendEmailOtp, signOut, verifyEmailOtp } from "./auth.js";
+import { getCurrentSession, onAuthStateChange, sendEmailOtp, signOut, verifyEmailOtp } from "./auth.js";
 
 const LEGACY_STORAGE_KEY = "garagem-mvp-v1";
 const STORAGE_MIGRATION_KEY = "miniverso-storage-migrated-to-user";
@@ -13,6 +13,7 @@ let toastTimer;
 let modalReturnFocus = null;
 let pendingLoginEmail = sessionStorage.getItem("miniverso-pending-email") || "";
 let resendTimer = null;
+let resendUntil = 0;
 let draggedMiniId = null;
 let draggedSlot = null;
 let selectedMiniId = null;
@@ -91,6 +92,7 @@ function normalizeState(raw) {
 }
 
 function saveState() {
+  if (!currentUserId) return false;
   try {
     localStorage.setItem(storageKey(), JSON.stringify(state));
     updateStats();
@@ -123,11 +125,13 @@ function showToast(message) {
 }
 
 function authErrorMessage(error) {
+  if (error?.retryAfter > 0) {
+    const seconds = Math.ceil(error.retryAfter);
+    const wait = seconds < 60 ? `${seconds} segundos` : `${Math.ceil(seconds / 60)} minuto(s)`;
+    return `Aguarde ${wait} antes de solicitar outro código.`;
+  }
   const code = error?.code || "";
   if (code === "otp_expired") return "O código expirou. Solicite um novo código.";
-  if (code === "over_email_send_rate_limit") return "Aguarde um pouco antes de solicitar outro código.";
-  if (code === "over_request_rate_limit") return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
-  if (code === "otp_disabled") return "O envio de códigos está desativado no serviço de autenticação.";
   if (/invalid|expired/i.test(error?.message || "")) return "Código inválido ou expirado.";
   return error?.message || "Não foi possível concluir o acesso. Tente novamente.";
 }
@@ -141,6 +145,7 @@ function setAuthMessage(message, isError = false) {
 function setFormBusy(form, busy) {
   $$('button, input', form).forEach((control) => { control.disabled = busy; });
   form.setAttribute("aria-busy", String(busy));
+  updateResendControls();
 }
 
 function showOtpStep(email) {
@@ -163,22 +168,29 @@ function showEmailStep() {
 
 function startResendCooldown(seconds = 60) {
   clearInterval(resendTimer);
-  const button = $("#resend-code-button");
-  let remaining = seconds;
-  button.disabled = true;
-  button.textContent = `Reenviar em ${remaining}s`;
+  resendUntil = Date.now() + Math.max(0, seconds) * 1000;
+  updateResendControls();
   resendTimer = setInterval(() => {
-    remaining -= 1;
-    button.textContent = remaining > 0 ? `Reenviar em ${remaining}s` : "Reenviar código";
-    if (remaining <= 0) {
-      clearInterval(resendTimer);
-      button.disabled = false;
-    }
+    updateResendControls();
+    if (Date.now() >= resendUntil) clearInterval(resendTimer);
   }, 1000);
+}
+
+function updateResendControls() {
+  const remaining = Math.max(0, Math.ceil((resendUntil - Date.now()) / 1000));
+  const wait = remaining < 60 ? `${remaining}s` : `${Math.ceil(remaining / 60)} min`;
+  const emailForm = $("#email-login-form");
+  const sendButton = $('button[type="submit"]', emailForm);
+  sendButton.disabled = remaining > 0 || emailForm.getAttribute("aria-busy") === "true";
+  sendButton.textContent = remaining > 0 ? `Aguarde ${wait}` : "Enviar código";
+  const resendButton = $("#resend-code-button");
+  resendButton.disabled = remaining > 0 || $("#otp-login-form").getAttribute("aria-busy") === "true";
+  resendButton.textContent = remaining > 0 ? `Reenviar em ${wait}` : "Reenviar código";
 }
 
 function enterAuthenticatedApp(session) {
   if (!session?.user?.id) return;
+  if (currentUserId !== session.user.id) resetAccountInteractions();
   currentUserId = session.user.id;
   state = loadState();
   const email = session.user.email || "Conta conectada";
@@ -194,6 +206,7 @@ function enterAuthenticatedApp(session) {
 }
 
 function leaveAuthenticatedApp() {
+  resetAccountInteractions();
   currentUserId = null;
   state = freshState();
   $("#app-shell").hidden = true;
@@ -202,12 +215,16 @@ function leaveAuthenticatedApp() {
   showEmailStep();
 }
 
+function resetAccountInteractions() {
+  modalReturnFocus = null;
+  closeModal();
+  draggedMiniId = null;
+  draggedSlot = null;
+  selectedMiniId = null;
+  $$(".drag-over").forEach((slot) => slot.classList.remove("drag-over"));
+}
+
 async function initializeAuthentication() {
-  if (!authConfigured) {
-    setAuthMessage("Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY para ativar o envio de códigos.", true);
-    setFormBusy($("#email-login-form"), true);
-    return;
-  }
   try {
     const session = await getCurrentSession();
     if (session) enterAuthenticatedApp(session);
@@ -322,6 +339,8 @@ function closeModal() {
 }
 
 function openMiniForm(id = null) {
+  if (!currentUserId) return;
+  const formUserId = currentUserId;
   const mini = id ? getMini(id) : null;
   photoData = mini?.photo || "";
   const preview = photoData || "";
@@ -348,6 +367,7 @@ function openMiniForm(id = null) {
       <div class="form-field full"><label for="mini-notes">Observações</label><textarea id="mini-notes" name="notes" maxlength="500" placeholder="Detalhes, edição, onde encontrou...">${escapeHtml(mini?.notes || "")}</textarea></div>
     </div><div class="modal-actions"><button type="button" class="button button-quiet" data-modal-close>Cancelar</button><button class="button button-primary" type="submit">${mini ? "Salvar alterações" : "Adicionar à coleção"}</button></div></form>`);
 
+  const miniForm = $("#mini-form");
   $("#photo-input").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -356,6 +376,7 @@ function openMiniForm(id = null) {
     const image = new Image();
     const objectUrl = URL.createObjectURL(file);
     image.onload = () => {
+      if (currentUserId !== formUserId || !miniForm.isConnected) { URL.revokeObjectURL(objectUrl); return; }
       const scale = Math.min(1, 1200 / Math.max(image.naturalWidth, image.naturalHeight));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -395,6 +416,7 @@ function openMiniForm(id = null) {
 
   $("#mini-form").addEventListener("submit", (event) => {
     event.preventDefault();
+    if (currentUserId !== formUserId || !miniForm.isConnected) return;
     const form = new FormData(event.currentTarget);
     const data = Object.fromEntries(form.entries());
     const record = {
@@ -645,11 +667,12 @@ $("#email-login-form").addEventListener("submit", async (event) => {
   setFormBusy(form, true);
   setAuthMessage("Enviando seu código...");
   try {
-    await sendEmailOtp(email);
+    const result = await sendEmailOtp(email);
     showOtpStep(email);
-    startResendCooldown();
+    startResendCooldown(result.resendAfter || 60);
     setAuthMessage("Código enviado. Verifique também a pasta de spam.");
   } catch (error) {
+    if (error.retryAfter > 0) startResendCooldown(error.retryAfter);
     setAuthMessage(authErrorMessage(error), true);
   } finally {
     setFormBusy(form, false);
@@ -660,7 +683,7 @@ $("#otp-login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const token = String(new FormData(form).get("code") || "").replace(/\D/g, "");
-  if (!pendingLoginEmail || token.length < 6) {
+  if (!pendingLoginEmail || !/^\d{8}$/.test(token)) {
     setAuthMessage("Digite o código completo recebido por e-mail.", true);
     return;
   }
@@ -679,16 +702,20 @@ $("#otp-login-form").addEventListener("submit", async (event) => {
 
 $("#resend-code-button").addEventListener("click", async () => {
   if (!pendingLoginEmail) return showEmailStep();
-  const button = $("#resend-code-button");
-  button.disabled = true;
+  const form = $("#otp-login-form");
+  if (form.getAttribute("aria-busy") === "true") return;
+  const email = pendingLoginEmail;
+  setFormBusy(form, true);
   setAuthMessage("Reenviando código...");
   try {
-    await sendEmailOtp(pendingLoginEmail);
-    startResendCooldown();
+    const result = await sendEmailOtp(email);
+    startResendCooldown(result.resendAfter || 60);
     setAuthMessage("Novo código enviado.");
   } catch (error) {
-    button.disabled = false;
+    if (error.retryAfter > 0) startResendCooldown(error.retryAfter);
     setAuthMessage(authErrorMessage(error), true);
+  } finally {
+    setFormBusy(form, false);
   }
 });
 

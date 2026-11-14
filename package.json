@@ -4,14 +4,19 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
     "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.0.0"
+    "preview": "node scripts/dev.mjs",
+    "test": "node --test test/*.test.js scripts/*.test.mjs",
+    "setup": "node scripts/setup.mjs",
+    "deploy": "node scripts/deploy.mjs"
   },
   "devDependencies": {
-    "vite": "^6.0.0"
+    "miniflare": "^5.20261113.0-beta",
+    "vite": "^6.0.0",
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }
