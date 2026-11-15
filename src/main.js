@@ -1,5 +1,5 @@
 import "./style.css";
-import { getCurrentSession, onAuthStateChange, sendEmailOtp, signOut, verifyEmailOtp } from "./auth.js";
+import { createAccount, getCurrentSession, onAuthStateChange, signIn, signOut } from "./auth.js";
 
 const LEGACY_STORAGE_KEY = "garagem-mvp-v1";
 const STORAGE_MIGRATION_KEY = "miniverso-storage-migrated-to-user";
@@ -11,9 +11,6 @@ let state = freshState();
 let activeView = "collection";
 let toastTimer;
 let modalReturnFocus = null;
-let pendingLoginEmail = sessionStorage.getItem("miniverso-pending-email") || "";
-let resendTimer = null;
-let resendUntil = 0;
 let draggedMiniId = null;
 let draggedSlot = null;
 let selectedMiniId = null;
@@ -128,11 +125,11 @@ function authErrorMessage(error) {
   if (error?.retryAfter > 0) {
     const seconds = Math.ceil(error.retryAfter);
     const wait = seconds < 60 ? `${seconds} segundos` : `${Math.ceil(seconds / 60)} minuto(s)`;
-    return `Aguarde ${wait} antes de solicitar outro código.`;
+    return `Muitas tentativas. Aguarde ${wait} e tente novamente.`;
   }
   const code = error?.code || "";
-  if (code === "otp_expired") return "O código expirou. Solicite um novo código.";
-  if (/invalid|expired/i.test(error?.message || "")) return "Código inválido ou expirado.";
+  if (code === "invalid_credentials") return "E-mail ou senha incorretos.";
+  if (code === "email_in_use") return "Este e-mail já possui uma conta. Clique em “Já tenho conta”.";
   return error?.message || "Não foi possível concluir o acesso. Tente novamente.";
 }
 
@@ -145,47 +142,18 @@ function setAuthMessage(message, isError = false) {
 function setFormBusy(form, busy) {
   $$('button, input', form).forEach((control) => { control.disabled = busy; });
   form.setAttribute("aria-busy", String(busy));
-  updateResendControls();
 }
 
-function showOtpStep(email) {
-  pendingLoginEmail = email;
-  sessionStorage.setItem("miniverso-pending-email", email);
-  $("#email-login-form").hidden = true;
-  $("#otp-login-form").hidden = false;
-  $("#otp-email").textContent = email;
-  $("#login-code").value = "";
-  $("#login-code").focus();
-}
-
-function showEmailStep() {
-  $("#otp-login-form").hidden = true;
-  $("#email-login-form").hidden = false;
-  $("#login-email").value = pendingLoginEmail;
+function showAuthMode(mode) {
+  const registering = mode === "register";
+  $("#register-form").hidden = !registering;
+  $("#login-form").hidden = registering;
+  $("#show-register-button").classList.toggle("active", registering);
+  $("#show-login-button").classList.toggle("active", !registering);
+  $("#show-register-button").setAttribute("aria-selected", String(registering));
+  $("#show-login-button").setAttribute("aria-selected", String(!registering));
   setAuthMessage("");
-  $("#login-email").focus();
-}
-
-function startResendCooldown(seconds = 60) {
-  clearInterval(resendTimer);
-  resendUntil = Date.now() + Math.max(0, seconds) * 1000;
-  updateResendControls();
-  resendTimer = setInterval(() => {
-    updateResendControls();
-    if (Date.now() >= resendUntil) clearInterval(resendTimer);
-  }, 1000);
-}
-
-function updateResendControls() {
-  const remaining = Math.max(0, Math.ceil((resendUntil - Date.now()) / 1000));
-  const wait = remaining < 60 ? `${remaining}s` : `${Math.ceil(remaining / 60)} min`;
-  const emailForm = $("#email-login-form");
-  const sendButton = $('button[type="submit"]', emailForm);
-  sendButton.disabled = remaining > 0 || emailForm.getAttribute("aria-busy") === "true";
-  sendButton.textContent = remaining > 0 ? `Aguarde ${wait}` : "Enviar código";
-  const resendButton = $("#resend-code-button");
-  resendButton.disabled = remaining > 0 || $("#otp-login-form").getAttribute("aria-busy") === "true";
-  resendButton.textContent = remaining > 0 ? `Reenviar em ${wait}` : "Reenviar código";
+  $(registering ? "#register-email" : "#login-email").focus();
 }
 
 function enterAuthenticatedApp(session) {
@@ -200,7 +168,6 @@ function enterAuthenticatedApp(session) {
   $("#auth-screen").hidden = true;
   $("#app-shell").hidden = false;
   $("#mobile-nav").hidden = false;
-  sessionStorage.removeItem("miniverso-pending-email");
   renderCollection();
   renderPlanner();
 }
@@ -212,7 +179,7 @@ function leaveAuthenticatedApp() {
   $("#app-shell").hidden = true;
   $("#mobile-nav").hidden = true;
   $("#auth-screen").hidden = false;
-  showEmailStep();
+  showAuthMode("login");
 }
 
 function resetAccountInteractions() {
@@ -230,7 +197,7 @@ async function initializeAuthentication() {
     if (session) enterAuthenticatedApp(session);
     else {
       $("#auth-screen").hidden = false;
-      if (pendingLoginEmail) showOtpStep(pendingLoginEmail);
+      showAuthMode("register");
     }
   } catch (error) {
     setAuthMessage(authErrorMessage(error), true);
@@ -659,39 +626,23 @@ document.addEventListener("click", (event) => {
   }
 });
 
-$("#email-login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const email = String(new FormData(form).get("email") || "").trim().toLocaleLowerCase("pt-BR");
-  if (!email) return;
-  setFormBusy(form, true);
-  setAuthMessage("Enviando seu código...");
-  try {
-    const result = await sendEmailOtp(email);
-    showOtpStep(email);
-    startResendCooldown(result.resendAfter || 60);
-    setAuthMessage("Código enviado. Verifique também a pasta de spam.");
-  } catch (error) {
-    if (error.retryAfter > 0) startResendCooldown(error.retryAfter);
-    setAuthMessage(authErrorMessage(error), true);
-  } finally {
-    setFormBusy(form, false);
-  }
-});
+$("#show-register-button").addEventListener("click", () => showAuthMode("register"));
+$("#show-login-button").addEventListener("click", () => showAuthMode("login"));
 
-$("#otp-login-form").addEventListener("submit", async (event) => {
+$("#register-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const token = String(new FormData(form).get("code") || "").replace(/\D/g, "");
-  if (!pendingLoginEmail || !/^\d{8}$/.test(token)) {
-    setAuthMessage("Digite o código completo recebido por e-mail.", true);
+  const data = new FormData(form);
+  const email = String(data.get("email") || "").trim().toLocaleLowerCase("pt-BR");
+  const password = String(data.get("password") || "");
+  if (password !== String(data.get("passwordConfirm") || "")) {
+    setAuthMessage("As duas senhas precisam ser iguais.", true);
     return;
   }
   setFormBusy(form, true);
-  setAuthMessage("Confirmando código...");
+  setAuthMessage("Criando sua conta...");
   try {
-    const session = await verifyEmailOtp(pendingLoginEmail, token);
-    if (!session) throw new Error("A sessão não foi criada.");
+    const session = await createAccount(email, password);
     enterAuthenticatedApp(session);
   } catch (error) {
     setAuthMessage(authErrorMessage(error), true);
@@ -700,26 +651,23 @@ $("#otp-login-form").addEventListener("submit", async (event) => {
   }
 });
 
-$("#resend-code-button").addEventListener("click", async () => {
-  if (!pendingLoginEmail) return showEmailStep();
-  const form = $("#otp-login-form");
-  if (form.getAttribute("aria-busy") === "true") return;
-  const email = pendingLoginEmail;
+$("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const email = String(data.get("email") || "").trim().toLocaleLowerCase("pt-BR");
+  const password = String(data.get("password") || "");
   setFormBusy(form, true);
-  setAuthMessage("Reenviando código...");
+  setAuthMessage("Entrando...");
   try {
-    const result = await sendEmailOtp(email);
-    startResendCooldown(result.resendAfter || 60);
-    setAuthMessage("Novo código enviado.");
+    const session = await signIn(email, password);
+    enterAuthenticatedApp(session);
   } catch (error) {
-    if (error.retryAfter > 0) startResendCooldown(error.retryAfter);
     setAuthMessage(authErrorMessage(error), true);
   } finally {
     setFormBusy(form, false);
   }
 });
-
-$("#change-email-button").addEventListener("click", showEmailStep);
 
 $$('[data-logout]').forEach((button) => button.addEventListener("click", async () => {
   button.disabled = true;

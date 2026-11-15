@@ -9,7 +9,7 @@ import { emitKeypressEvents } from "node:readline";
 
 export const ROOT = fileURLToPath(new URL("../", import.meta.url));
 export const SETTINGS_PATH = join(ROOT, ".dev.vars");
-export const SETTINGS_KEYS = ["AUTH_SECRET", "BREVO_API_KEY", "MAIL_FROM_EMAIL", "MAIL_FROM_NAME"];
+export const SETTINGS_KEYS = ["AUTH_SECRET"];
 export const PLACEHOLDER_DATABASE_ID = "00000000-0000-0000-0000-000000000000";
 
 export function assertNodeVersion() {
@@ -46,13 +46,6 @@ export function validateSettings(values) {
   if (values.AUTH_SECRET.trim().length < 32 || values.AUTH_SECRET.startsWith("gere_um_segredo")) {
     throw new Error("AUTH_SECRET precisa ser um segredo próprio com pelo menos 32 caracteres. O exemplo não pode ser usado.");
   }
-  if (values.BREVO_API_KEY.trim().length < 20 || values.BREVO_API_KEY === "sua_chave_api_brevo") {
-    throw new Error("Informe uma chave de API válida do Brevo.");
-  }
-  if (values.MAIL_FROM_EMAIL.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.MAIL_FROM_EMAIL)
-    || values.MAIL_FROM_EMAIL === "remetente_verificado@exemplo.com") {
-    throw new Error("Informe o e-mail do remetente que você confirmou no Brevo.");
-  }
   for (const [key, value] of Object.entries(values)) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || typeof value !== "string" || /[\r\n\0$]/.test(value)) {
       throw new Error(`Revise o formato da variável ${key}. Quebras de linha e o caractere $ não são aceitos neste arquivo.`);
@@ -67,17 +60,11 @@ export function validateSettings(values) {
 export function mergeSettings(saved, environment = process.env) {
   saved = { ...saved };
   if (saved.AUTH_SECRET?.startsWith("gere_um_segredo")) delete saved.AUTH_SECRET;
-  if (saved.BREVO_API_KEY === "sua_chave_api_brevo") delete saved.BREVO_API_KEY;
-  if (saved.MAIL_FROM_EMAIL === "remetente_verificado@exemplo.com") delete saved.MAIL_FROM_EMAIL;
   if (saved.AUTH_SECRET && environment.AUTH_SECRET && saved.AUTH_SECRET !== environment.AUTH_SECRET) {
     throw new Error("AUTH_SECRET do ambiente difere do arquivo existente. Remova essa variável do ambiente para preservar o segredo atual.");
   }
   const result = { ...saved };
   result.AUTH_SECRET = saved.AUTH_SECRET || environment.AUTH_SECRET || randomBytes(32).toString("base64url");
-  for (const key of SETTINGS_KEYS.filter((name) => name !== "AUTH_SECRET")) {
-    if (environment[key]) result[key] = environment[key].trim();
-  }
-  result.MAIL_FROM_NAME ||= "Miniverso";
   return result;
 }
 

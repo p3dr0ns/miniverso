@@ -64,7 +64,7 @@ export async function deploy() {
   });
   console.log("Publicando o site e o servidor com os segredos protegidos...");
   await wrangler(["deploy", "--secrets-file", ".dev.vars"], { environment, omitSettings: true });
-  console.log("\nUse o endereço HTTPS informado acima para solicitar um código e entrar no Miniverso.");
+  console.log("\nUse o endereço HTTPS informado acima para criar uma conta e entrar no Miniverso.");
 }
 
 if (isEntrypoint(import.meta.url)) await command(deploy);

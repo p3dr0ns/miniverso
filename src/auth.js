@@ -75,15 +75,14 @@ export async function getCurrentSession() {
   return currentSession;
 }
 
-export async function sendEmailOtp(email) {
-  return authRequest("request-code", { method: "POST", body: { email } });
-}
-
-export async function verifyEmailOtp(email, code) {
-  const { session } = await authRequest("verify-code", { method: "POST", body: { email, code } });
+async function authenticate(path, email, password) {
+  const { session } = await authRequest(path, { method: "POST", body: { email, password } });
   updateSession(session, true);
   return session;
 }
+
+export const createAccount = (email, password) => authenticate("register", email, password);
+export const signIn = (email, password) => authenticate("login", email, password);
 
 export async function signOut() {
   await authRequest("logout", { method: "POST", body: {} });
