@@ -91,6 +91,8 @@ export async function updateAccount(email, password = "") {
 export const findCatalogItem = async (code) => (await authRequest(`../catalog/${encodeURIComponent(code)}`)).item;
 export const searchCatalogItems = async (query = "") => (await authRequest(`../catalog?query=${encodeURIComponent(query)}`)).items;
 export const contributeCatalogItem = async (item) => authRequest("../catalog/contribute", { method: "POST", body: item });
+export const getCloudState = async () => authRequest("../state");
+export const saveCloudState = async (state) => authRequest("../state", { method: "PUT", body: { state } });
 
 export async function signOut() {
   await authRequest("logout", { method: "POST", body: {} });

@@ -1,5 +1,5 @@
 import "./style.css";
-import { contributeCatalogItem, createAccount, findCatalogItem, getCurrentSession, onAuthStateChange, searchCatalogItems, signIn, signOut, updateAccount } from "./auth.js";
+import { contributeCatalogItem, createAccount, findCatalogItem, getCloudState, getCurrentSession, onAuthStateChange, saveCloudState, searchCatalogItems, signIn, signOut, updateAccount } from "./auth.js";
 
 const LEGACY_STORAGE_KEY = "garagem-mvp-v1";
 const STORAGE_MIGRATION_KEY = "miniverso-storage-migrated-to-user";
@@ -10,6 +10,9 @@ let currentUserId = null;
 let state = freshState();
 let activeView = "catalog";
 let toastTimer;
+let cloudSaveTimer;
+let cloudStateReady = false;
+let cloudSaveRevision = 0;
 let modalReturnFocus = null;
 let draggedMiniId = null;
 let draggedSlot = null;
@@ -55,6 +58,7 @@ function saveProfile(updates, userId = currentUserId) {
   localStorage.setItem(profileKey(userId), JSON.stringify(next));
   $$(".profile-name-copy").forEach((element) => { element.textContent = next.name; });
   renderProfile();
+  if (userId === currentUserId) scheduleCloudSave();
   return true;
 }
 const saveProfileName = (name, userId = currentUserId) => saveProfile({ name }, userId);
@@ -305,11 +309,77 @@ function normalizeState(raw) {
   };
 }
 
+function setSyncStatus(message, stateName = "saved") {
+  $$(".sync-status-copy").forEach((element) => { element.textContent = message; });
+  $$(".cloud-sync-status").forEach((element) => { element.dataset.state = stateName; });
+}
+
+function cloudSafeState() {
+  const profile = currentUserId ? getProfile({ id: currentUserId, email: $("#user-email-desktop").textContent }) : null;
+  return {
+    ...state,
+    minis: state.minis.map((mini) => ({ ...mini, photo: String(mini.photo || "").startsWith("data:") ? "" : mini.photo || "" })),
+    ...(profile ? { profile: { ...profile, avatar: String(profile.avatar || "").startsWith("data:") ? "" : profile.avatar, cover: String(profile.cover || "").startsWith("data:") ? "" : profile.cover, email: undefined } } : {})
+  };
+}
+
+function scheduleCloudSave() {
+  cloudSaveRevision += 1;
+  if (!cloudStateReady || !currentUserId) return;
+  clearTimeout(cloudSaveTimer);
+  setSyncStatus("Salvando…", "syncing");
+  const revision = cloudSaveRevision, userId = currentUserId;
+  cloudSaveTimer = setTimeout(async () => {
+    try {
+      await saveCloudState(cloudSafeState());
+      if (currentUserId === userId && revision === cloudSaveRevision) setSyncStatus("Salvo na nuvem", "saved");
+    } catch (error) {
+      if (currentUserId === userId) setSyncStatus("Pendente de sincronização", "error");
+      console.error("Não foi possível sincronizar a coleção.", error);
+    }
+  }, 800);
+}
+
+async function synchronizeCloudState(userId) {
+  cloudStateReady = false;
+  setSyncStatus("Sincronizando…", "syncing");
+  const localState = state;
+  try {
+    const { state: remoteState } = await getCloudState();
+    if (currentUserId !== userId) return;
+    if (remoteState) {
+      const localPhotos = new Map(localState.minis.filter((mini) => String(mini.photo || "").startsWith("data:")).map((mini) => [mini.id, mini.photo]));
+      const localProfile = getProfile({ id: userId, email: $("#user-email-desktop").textContent });
+      if (remoteState.profile && typeof remoteState.profile === "object") {
+        const mergedProfile = { ...remoteState.profile, ...(String(localProfile.avatar || "").startsWith("data:") ? { avatar: localProfile.avatar } : {}), ...(String(localProfile.cover || "").startsWith("data:") ? { cover: localProfile.cover } : {}) };
+        localStorage.setItem(profileKey(userId), JSON.stringify(mergedProfile));
+        $$(".profile-name-copy").forEach((element) => { element.textContent = mergedProfile.name || localProfile.name; });
+      }
+      state = normalizeState(remoteState);
+      state.minis.forEach((mini) => { if (localPhotos.has(mini.id)) mini.photo = localPhotos.get(mini.id); });
+      localStorage.setItem(storageKey(), JSON.stringify(state));
+      renderCollection(); renderPlanner(); if (activeView === "profile") renderProfile();
+      setSyncStatus("Salvo na nuvem", "saved");
+    } else {
+      cloudStateReady = true;
+      await saveCloudState(cloudSafeState());
+      if (currentUserId !== userId) return;
+      setSyncStatus("Acervo salvo na nuvem", "saved");
+    }
+  } catch (error) {
+    if (currentUserId === userId) setSyncStatus("Usando cópia local", "error");
+    console.error("Não foi possível carregar a coleção da nuvem.", error);
+  } finally {
+    if (currentUserId === userId) cloudStateReady = true;
+  }
+}
+
 function saveState() {
   if (!currentUserId) return false;
   try {
     localStorage.setItem(storageKey(), JSON.stringify(state));
     updateStats();
+    scheduleCloudSave();
     return true;
   } catch (error) {
     console.error("Não foi possível salvar os dados.", error);
@@ -403,11 +473,14 @@ function enterAuthenticatedApp(session) {
   renderCollection();
   renderPlanner();
   loadCatalog();
+  synchronizeCloudState(currentUserId);
 }
 
 function leaveAuthenticatedApp() {
   resetAccountInteractions();
   currentUserId = null;
+  cloudStateReady = false;
+  clearTimeout(cloudSaveTimer);
   state = freshState();
   $("#app-shell").hidden = true;
   $("#mobile-nav").hidden = true;

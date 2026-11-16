@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { handleRequest } from "../server/worker.js";
 const ORIGIN = "https://miniverso.example", EMAIL = "collector@example.com", PASSWORD = "password123";
-const migrations = await Promise.all(["0001_auth.sql", "0002_password_auth.sql", "0003_catalog.sql", "0004_reference_catalog.sql"].map((name) => readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8")));
+const migrations = await Promise.all(["0001_auth.sql", "0002_password_auth.sql", "0003_catalog.sql", "0004_reference_catalog.sql", "0005_user_state.sql"].map((name) => readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8")));
 async function fixture(t) {
   const runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: "export default { fetch() { return new Response('ok'); } };", compatibilityDate: "2026-11-14", d1Databases: { AUTH_DB: randomUUID() } }));
   t.after(() => runtime.dispose()); const db = await runtime.getD1Database("AUTH_DB");
@@ -33,6 +33,13 @@ test("authenticated user can update email and password", async (t) => {
   assert.equal((await f.request("/api/auth/login", { body: { email: "new@example.com", password: "newpassword123" } })).status, 200);
   await error(await f.request("/api/auth/login", { body: { email: EMAIL, password: PASSWORD } }), 401, "invalid_credentials");
   await error(await f.request("/api/auth/account", { body: { email: "other@example.com" } }), 401, "authentication_required");
+});
+test("collection state synchronizes per authenticated user", async (t) => {
+  const f = await fixture(t), registered = await f.request("/api/auth/register", { body: { email: EMAIL, password: PASSWORD } }), cookie = registered.headers.get("set-cookie").split(";")[0];
+  const state = { minis: [{ id: "mini-1", name: "Porsche 911" }], showcases: [], placements: {}, drafts: {}, activeShowcaseId: null };
+  const saved = await f.request("/api/state", { method: "PUT", headers: { Cookie: cookie }, body: { state } }); assert.equal(saved.status, 200);
+  const loaded = await f.request("/api/state", { method: "GET", headers: { Cookie: cookie } }); assert.deepEqual((await loaded.json()).state, state);
+  await error(await f.request("/api/state", { method: "GET" }), 401, "authentication_required");
 });
 test("server rejects invalid requests and missing configuration", async (t) => {
   const f = await fixture(t); await error(await f.request("/api/auth/register", { body: { email: EMAIL, password: PASSWORD }, origin: null }), 403, "origin_not_allowed"); await error(await f.request("/api/auth/register", { body: { email: "bad", password: PASSWORD } }), 400, "invalid_request"); await error(await f.request("/api/auth/register", { body: { email: EMAIL, password: "short" } }), 400, "invalid_request"); delete f.env.AUTH_SECRET; await error(await f.request("/api/auth/session", { method: "GET" }), 503, "auth_unavailable");
