@@ -12,6 +12,12 @@ Este arquivo acompanha as fontes avaliadas para um futuro catálogo pesquisável
 | [Kaido House Garage Wiki](https://kaido-house-garage.fandom.com/wiki/Full_Collection) | Código, nome, cor, casting, tiragem, lançamento e observações | Catálogo Kaido House | Conteúdo comunitário; preservar atribuição e CC BY-SA |
 | [Matchbox Cars Wiki](https://matchbox.fandom.com/wiki/Matchbox_Cars_Wiki) | Listas por ano, números MAN, séries e rodas | Catálogo Matchbox | Conteúdo comunitário; preservar atribuição e CC BY-SA |
 | [Universo Hot Wheels](https://universohotwheels.com.br/colecoes/) | Coleções e categorias comerciais em português | Taxonomia e nomenclatura brasileira | Referência complementar; não importar preços ou estoque como catálogo permanente |
+| [hobbyDB](https://www.hobbydb.com/) | Banco amplo de colecionáveis e gestão de coleções | Referência e possível parceria futura | Sem API pública/documentação de reutilização confirmada; não conectado |
+| [Orange Track Diecast](https://orangetrackdiecast.com/) | Notícias, listas anuais e relatórios de caixas Hot Wheels | Conferência editorial | Sem API ou licença de reutilização identificada; não copiar automaticamente |
+
+## Integração ativa
+
+A busca por código consulta primeiro o catálogo colaborativo do Miniverso. Quando não encontra um registro, usa a API MediaWiki da Hot Wheels Wiki apenas para localizar uma página textual correspondente. O resultado mostra link, origem e licença CC BY-SA 3.0; imagens não são copiadas, pois podem ter licenças próprias. hobbyDB, Orange Track Diecast, HotApi e Hotwheels-Data permanecem apenas como referências até existir licença ou autorização adequada.
 
 ## Esquema de referência
 

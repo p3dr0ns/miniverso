@@ -38,7 +38,8 @@ async function ensureDatabase(config, environment) {
     if (!database) {
       console.log("Criando o banco de autenticação na Cloudflare...");
       await wrangler(["d1", "create", binding.database_name], { environment, omitSettings: true });
-      database = parseToolJson(await wrangler(["d1", "info", binding.database_name, "--json"], { capture: true, environment, omitSettings: true }));
+      const refreshed = parseToolJson(await wrangler(["d1", "list", "--json"], { capture: true, environment, omitSettings: true }));
+      database = Array.isArray(refreshed) ? refreshed.find((item) => item.name === binding.database_name) : null;
     }
     if (!/^[a-f0-9-]{36}$/i.test(database?.uuid || "")) throw new Error("A Cloudflare não retornou um identificador válido para o banco.");
     binding.database_id = database.uuid;
