@@ -231,6 +231,36 @@
           </div>
           <footer class="page-footer"><span>MINIVERSO © 2026</span><span>SEU ACERVO, SUA HISTÓRIA <b>✳</b></span></footer>
         </section>
+
+        <section id="account-edit-view" class="view">
+          <div class="account-edit-page">
+            <div class="profile-edit-heading"><button id="account-edit-back" type="button">← Voltar ao perfil</button><h1>Editar meus dados</h1><p>Atualize suas informações pessoais e os dados de acesso.</p></div>
+            <form id="account-edit-form" class="account-data-form">
+              <div class="account-data-grid">
+                <label>Nome de usuário *<input id="account-username" maxlength="30" required placeholder="seu_usuario" /></label>
+                <label>Nova senha <small>Deixe em branco para manter a atual</small><input id="account-new-password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" /></label>
+                <label class="wide">Nome completo<input id="account-full-name" maxlength="80" /></label>
+                <label>E-mail *<input id="account-email" type="email" required autocomplete="email" /></label>
+                <label>Data de nascimento<input id="account-birth-date" type="date" /></label>
+                <label>Sexo<select id="account-gender"><option value="">Prefiro não informar</option><option>Feminino</option><option>Masculino</option><option>Não binário</option><option>Outro</option></select></label>
+                <label>Celular<div class="phone-field"><select id="account-phone-country"><option value="+55">+55</option><option value="+351">+351</option><option value="+1">+1</option></select><input id="account-phone" type="tel" maxlength="15" placeholder="DDD + número" /></div></label>
+              </div>
+              <h2>Endereço</h2>
+              <div class="account-data-grid">
+                <label>País<select id="account-country"><option>Brasil</option><option>Portugal</option><option>Estados Unidos</option><option>Outro</option></select></label>
+                <label>CEP<input id="account-postal-code" maxlength="12" /></label>
+                <label class="wide">Rua<input id="account-street" maxlength="100" /></label>
+                <label>Número<input id="account-street-number" maxlength="12" /></label>
+                <label>Complemento<input id="account-complement" maxlength="60" /></label>
+                <label class="wide">Bairro<input id="account-district" maxlength="60" /></label>
+                <label>Cidade<input id="account-city" maxlength="60" /></label>
+                <label>Estado<input id="account-state" maxlength="40" /></label>
+              </div>
+              <div class="profile-edit-actions"><button class="button button-quiet" id="account-edit-cancel" type="button">Cancelar</button><button class="button button-primary" type="submit">Salvar alterações</button></div>
+            </form>
+          </div>
+          <footer class="page-footer"><span>MINIVERSO © 2026</span><span>SEU ACERVO, SUA HISTÓRIA <b>✳</b></span></footer>
+        </section>
       </main>
     </div>
 

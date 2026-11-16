@@ -83,6 +83,11 @@ async function authenticate(path, email, password) {
 
 export const createAccount = (email, password) => authenticate("register", email, password);
 export const signIn = (email, password) => authenticate("login", email, password);
+export async function updateAccount(email, password = "") {
+  const { user } = await authRequest("account", { method: "POST", body: { email, password } });
+  if (currentSession?.user && user) updateSession({ ...currentSession, user }, true);
+  return user;
+}
 export const findCatalogItem = async (code) => (await authRequest(`../catalog/${encodeURIComponent(code)}`)).item;
 export const contributeCatalogItem = async (item) => authRequest("../catalog/contribute", { method: "POST", body: item });
 

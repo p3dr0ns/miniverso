@@ -1,5 +1,5 @@
 import "./style.css";
-import { contributeCatalogItem, createAccount, findCatalogItem, getCurrentSession, onAuthStateChange, signIn, signOut } from "./auth.js";
+import { contributeCatalogItem, createAccount, findCatalogItem, getCurrentSession, onAuthStateChange, signIn, signOut, updateAccount } from "./auth.js";
 
 const LEGACY_STORAGE_KEY = "garagem-mvp-v1";
 const STORAGE_MIGRATION_KEY = "miniverso-storage-migrated-to-user";
@@ -28,7 +28,7 @@ function getProfile(user, suggestedName = "") {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(profileKey(user.id)) || "{}"); } catch { saved = {}; }
   const fallback = suggestedName.trim() || String(user.email || "Colecionador").split("@")[0] || "Colecionador";
-  const profile = { name: String(saved.name || fallback).slice(0, 50), bio: String(saved.bio || "").slice(0, 300), avatar: String(saved.avatar || ""), cover: String(saved.cover || ""), showEmail: Boolean(saved.showEmail), showWhatsapp: Boolean(saved.showWhatsapp), whatsapp: String(saved.whatsapp || "").slice(0, 20), joinedAt: saved.joinedAt || new Date().toISOString(), email: user.email || "" };
+  const profile = { name: String(saved.name || fallback).slice(0, 50), username: String(saved.username || "").slice(0, 30), bio: String(saved.bio || "").slice(0, 300), avatar: String(saved.avatar || ""), cover: String(saved.cover || ""), showEmail: Boolean(saved.showEmail), showWhatsapp: Boolean(saved.showWhatsapp), whatsapp: String(saved.whatsapp || "").slice(0, 20), account: saved.account && typeof saved.account === "object" ? saved.account : {}, joinedAt: saved.joinedAt || new Date().toISOString(), email: user.email || "" };
   if (!saved.joinedAt) localStorage.setItem(profileKey(user.id), JSON.stringify({ ...saved, name: profile.name, bio: profile.bio, joinedAt: profile.joinedAt }));
   return profile;
 }
@@ -44,6 +44,7 @@ function saveProfile(updates, userId = currentUserId) {
   next.showEmail = Boolean(next.showEmail);
   next.showWhatsapp = Boolean(next.showWhatsapp);
   next.whatsapp = String(next.whatsapp || "").trim().slice(0, 20);
+  next.username = String(next.username || "").trim().toLocaleLowerCase("pt-BR").replace(/[^a-z0-9._-]/g, "").slice(0, 30);
   if (!next.name) return false;
   localStorage.setItem(profileKey(userId), JSON.stringify(next));
   $$(".profile-name-copy").forEach((element) => { element.textContent = next.name; });
@@ -472,13 +473,14 @@ function setView(view) {
   if (view === "planner") renderPlanner();
   if (view === "profile") renderProfile();
   if (view === "profile-edit") renderProfileEditor();
+  if (view === "account-edit") renderAccountEditor();
 }
 
 function renderProfile() {
   if (!currentUserId || !$("#profile-view")) return;
   const email = $("#user-email-desktop").textContent;
   const profile = getProfile({ id: currentUserId, email });
-  const handle = normalizeText(email.split("@")[0] || profile.name).replace(/[^a-z0-9._-]/g, "") || "colecionador";
+  const handle = profile.username || normalizeText(email.split("@")[0] || profile.name).replace(/[^a-z0-9._-]/g, "") || "colecionador";
   const joinedAt = new Date(profile.joinedAt);
   $("#profile-page-name").textContent = profile.name;
   $("#profile-page-handle").textContent = `@${handle}`;
@@ -541,6 +543,29 @@ function prepareProfileImage(file, width, height, quality = .82) {
     image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não foi possível ler a imagem.")); };
     image.src = url;
   });
+}
+
+function renderAccountEditor() {
+  if (!currentUserId) return;
+  const email = $("#user-email-desktop").textContent;
+  const profile = getProfile({ id: currentUserId, email });
+  const account = profile.account || {};
+  $("#account-username").value = profile.username || normalizeText(email.split("@")[0]).replace(/[^a-z0-9._-]/g, "");
+  $("#account-new-password").value = "";
+  $("#account-full-name").value = account.fullName || profile.name;
+  $("#account-email").value = email;
+  $("#account-birth-date").value = account.birthDate || "";
+  $("#account-gender").value = account.gender || "";
+  $("#account-phone-country").value = account.phoneCountry || "+55";
+  $("#account-phone").value = account.phone || "";
+  $("#account-country").value = account.country || "Brasil";
+  $("#account-postal-code").value = account.postalCode || "";
+  $("#account-street").value = account.street || "";
+  $("#account-street-number").value = account.streetNumber || "";
+  $("#account-complement").value = account.complement || "";
+  $("#account-district").value = account.district || "";
+  $("#account-city").value = account.city || "";
+  $("#account-state").value = account.state || "";
 }
 
 function renderCollection() {
@@ -1048,6 +1073,12 @@ function openProfileEditor() {
   scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function openAccountEditor() {
+  closeAccountMenu();
+  setView("account-edit");
+  scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function openSupportProject() {
   closeAccountMenu();
   modal(`<div class="modal-head"><div><p class="eyebrow">APOIE O MINIVERSO</p><h2>Ajude o projeto a crescer</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><p class="modal-description">A área de apoio será disponibilizada em breve. Enquanto isso, compartilhar o Miniverso com outros colecionadores já ajuda muito.</p><div class="modal-actions" style="padding:0 21px 19px;border:0"><button class="button button-primary" data-modal-close type="button">Entendi</button></div>`, true);
@@ -1079,7 +1110,28 @@ $("#profile-edit-form").addEventListener("submit", (event) => {
   if (saved) { showToast("Perfil atualizado."); openProfileSummary(); }
 });
 $("#edit-appearance-button").addEventListener("click", openProfileEditor);
-$("#edit-profile-button").addEventListener("click", openProfileEditor);
+$("#edit-profile-button").addEventListener("click", openAccountEditor);
+$("#account-edit-back").addEventListener("click", openProfileSummary);
+$("#account-edit-cancel").addEventListener("click", openProfileSummary);
+$("#account-edit-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const username = $("#account-username").value.trim().toLocaleLowerCase("pt-BR").replace(/[^a-z0-9._-]/g, "");
+  if (username.length < 3) { showToast("O nome de usuário precisa ter pelo menos 3 caracteres."); return; }
+  const password = $("#account-new-password").value;
+  if (password && password.length < 8) { showToast("A nova senha precisa ter pelo menos 8 caracteres."); return; }
+  setFormBusy(form, true);
+  try {
+    const email = $("#account-email").value.trim().toLocaleLowerCase("pt-BR");
+    await updateAccount(email, password);
+    const account = { fullName: $("#account-full-name").value.trim(), birthDate: $("#account-birth-date").value, gender: $("#account-gender").value, phoneCountry: $("#account-phone-country").value, phone: $("#account-phone").value.trim(), country: $("#account-country").value, postalCode: $("#account-postal-code").value.trim(), street: $("#account-street").value.trim(), streetNumber: $("#account-street-number").value.trim(), complement: $("#account-complement").value.trim(), district: $("#account-district").value.trim(), city: $("#account-city").value.trim(), state: $("#account-state").value.trim() };
+    saveProfile({ username, name: account.fullName || $("#profile-name").textContent, account });
+    showToast("Dados atualizados.");
+    openProfileSummary();
+  } catch (error) {
+    showToast(authErrorMessage(error));
+  } finally { setFormBusy(form, false); }
+});
 $("#support-project-button").addEventListener("click", openSupportProject);
 $("#csv-file-input").addEventListener("change", async (event) => {
   const input = event.currentTarget;

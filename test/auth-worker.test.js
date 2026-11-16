@@ -26,6 +26,14 @@ test("login validates credentials and rate limits failures", async (t) => {
   await error(await f.request("/api/auth/login", { body: { email: EMAIL, password: "wrongpass" } }), 401, "invalid_credentials"); assert.equal((await f.request("/api/auth/login", { body: { email: EMAIL, password: PASSWORD } })).status, 200);
   for (let i = 0; i < 8; i++) await error(await f.request("/api/auth/login", { body: { email: "absent@example.com", password: "wrongpass" } }), 401, "invalid_credentials"); await error(await f.request("/api/auth/login", { body: { email: "absent@example.com", password: "wrongpass" } }), 429, "rate_limited");
 });
+test("authenticated user can update email and password", async (t) => {
+  const f = await fixture(t), registered = await f.request("/api/auth/register", { body: { email: EMAIL, password: PASSWORD } }), cookie = registered.headers.get("set-cookie").split(";")[0];
+  const changed = await f.request("/api/auth/account", { headers: { Cookie: cookie }, body: { email: "new@example.com", password: "newpassword123" } });
+  assert.equal(changed.status, 200); assert.equal((await changed.json()).user.email, "new@example.com");
+  assert.equal((await f.request("/api/auth/login", { body: { email: "new@example.com", password: "newpassword123" } })).status, 200);
+  await error(await f.request("/api/auth/login", { body: { email: EMAIL, password: PASSWORD } }), 401, "invalid_credentials");
+  await error(await f.request("/api/auth/account", { body: { email: "other@example.com" } }), 401, "authentication_required");
+});
 test("server rejects invalid requests and missing configuration", async (t) => {
   const f = await fixture(t); await error(await f.request("/api/auth/register", { body: { email: EMAIL, password: PASSWORD }, origin: null }), 403, "origin_not_allowed"); await error(await f.request("/api/auth/register", { body: { email: "bad", password: PASSWORD } }), 400, "invalid_request"); await error(await f.request("/api/auth/register", { body: { email: EMAIL, password: "short" } }), 400, "invalid_request"); delete f.env.AUTH_SECRET; await error(await f.request("/api/auth/session", { method: "GET" }), 503, "auth_unavailable");
 });
