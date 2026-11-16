@@ -1048,13 +1048,6 @@ function openProfileEditor() {
   scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function openAppearanceEditor() {
-  closeAccountMenu();
-  const dark = document.documentElement.dataset.theme === "dark";
-  modal(`<div class="modal-head"><div><p class="eyebrow">APARÊNCIA</p><h2>Escolha o tema</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="appearance-options"><button class="${dark ? "" : "active"}" data-select-theme="light" type="button"><i>☀</i><strong>Claro</strong><span>Visual leve e luminoso</span></button><button class="${dark ? "active" : ""}" data-select-theme="dark" type="button"><i>☾</i><strong>Escuro</strong><span>Confortável em pouca luz</span></button></div>`, true);
-  $$('[data-select-theme]').forEach((button) => button.addEventListener("click", () => { applyTheme(button.dataset.selectTheme); closeModal(); showToast("Aparência atualizada."); }));
-}
-
 function openSupportProject() {
   closeAccountMenu();
   modal(`<div class="modal-head"><div><p class="eyebrow">APOIE O MINIVERSO</p><h2>Ajude o projeto a crescer</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><p class="modal-description">A área de apoio será disponibilizada em breve. Enquanto isso, compartilhar o Miniverso com outros colecionadores já ajuda muito.</p><div class="modal-actions" style="padding:0 21px 19px;border:0"><button class="button button-primary" data-modal-close type="button">Entendi</button></div>`, true);
@@ -1085,7 +1078,7 @@ $("#profile-edit-form").addEventListener("submit", (event) => {
   const saved = saveProfile({ name: $("#profile-edit-name").value, bio: $("#profile-edit-bio").value, avatar: profileAvatarDraft, cover: profileCoverDraft, showEmail: $("#profile-show-email").checked, showWhatsapp: $("#profile-show-whatsapp").checked, whatsapp: $("#profile-whatsapp").value });
   if (saved) { showToast("Perfil atualizado."); openProfileSummary(); }
 });
-$("#edit-appearance-button").addEventListener("click", openAppearanceEditor);
+$("#edit-appearance-button").addEventListener("click", openProfileEditor);
 $("#edit-profile-button").addEventListener("click", openProfileEditor);
 $("#support-project-button").addEventListener("click", openSupportProject);
 $("#csv-file-input").addEventListener("change", async (event) => {
