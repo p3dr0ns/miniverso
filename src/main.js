@@ -20,6 +20,10 @@ let profileCoverDraft = "";
 let collectionPage = 1;
 let catalogItems = [];
 let catalogRequest = 0;
+let catalogPhotoObserver = null;
+const catalogPhotoQueued = new Set();
+const catalogPhotoQueue = [];
+let catalogPhotoWorkers = 0;
 const COLLECTION_PAGE_SIZE = 40;
 let collectionLayout = localStorage.getItem("miniverso-collection-layout") || "list";
 const THEME_KEY = "miniverso-theme";
@@ -507,7 +511,49 @@ function renderCatalogResults() {
   $("#catalog-result-summary").textContent = `${items.length} miniatura(s) encontrada(s) no banco de dados`;
   $("#catalog-empty").hidden = items.length > 0;
   const grid = $("#catalog-database-grid"); grid.hidden = !items.length;
-  grid.innerHTML = items.map((item) => `<article class="catalog-item-card"><div class="catalog-item-photo">${item.photo ? `<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : `<div class="photo-placeholder" style="--car-color:${escapeHtml(item.color || "#d8753f")}"><i class="placeholder-window"></i><i class="placeholder-body"></i><i class="placeholder-wheel"></i></div>`}</div><div class="catalog-item-info"><span>${escapeHtml(item.maker || "Fabricante não informado")}</span><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.series,item.releaseYear,item.scale].filter(Boolean).join(" · ") || "Detalhes não informados")}</p><div><code>${escapeHtml(item.code)}</code><button class="button button-primary" data-add-catalog-code="${escapeHtml(item.code)}" type="button">Adicionar à coleção</button></div></div></article>`).join("");
+  grid.innerHTML = items.map((item) => `<article class="catalog-item-card"><div class="catalog-item-photo" ${item.photo ? "" : `data-catalog-photo-code="${escapeHtml(item.code)}"`}>${item.photo ? `<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : `<div class="photo-placeholder" style="--car-color:${escapeHtml(item.color || "#d8753f")}"><i class="placeholder-window"></i><i class="placeholder-body"></i><i class="placeholder-wheel"></i></div><small>Buscando foto…</small>`}</div><div class="catalog-item-info"><span>${escapeHtml(item.maker || "Fabricante não informado")}</span><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.series,item.releaseYear,item.scale].filter(Boolean).join(" · ") || "Detalhes não informados")}</p><div><code>${escapeHtml(item.code)}</code><button class="button button-primary" data-add-catalog-code="${escapeHtml(item.code)}" type="button">Adicionar à coleção</button></div></div></article>`).join("");
+  observeCatalogPhotos();
+}
+
+function observeCatalogPhotos() {
+  catalogPhotoObserver?.disconnect();
+  catalogPhotoObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    catalogPhotoObserver.unobserve(entry.target);
+    queueCatalogPhoto(entry.target.dataset.catalogPhotoCode);
+  }), { rootMargin: "350px 0px" });
+  $$('[data-catalog-photo-code]', $("#catalog-database-grid")).forEach((element) => catalogPhotoObserver.observe(element));
+}
+
+function queueCatalogPhoto(code) {
+  if (!code || catalogPhotoQueued.has(code)) return;
+  catalogPhotoQueued.add(code); catalogPhotoQueue.push(code);
+  while (catalogPhotoWorkers < 3 && catalogPhotoQueue.length) runCatalogPhotoWorker();
+}
+
+async function runCatalogPhotoWorker() {
+  const code = catalogPhotoQueue.shift();
+  if (!code) return;
+  catalogPhotoWorkers += 1;
+  try {
+    const item = await findCatalogItem(code);
+    if (item?.photo) {
+      const stored = catalogItems.find((candidate) => candidate.code === code);
+      if (stored) Object.assign(stored, item);
+      $$('[data-catalog-photo-code]', $("#catalog-database-grid")).filter((element) => element.dataset.catalogPhotoCode === code).forEach((element) => {
+        element.removeAttribute("data-catalog-photo-code");
+        element.innerHTML = `<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name || stored?.name || "Miniatura")}" />`;
+      });
+    } else {
+      $$('[data-catalog-photo-code]', $("#catalog-database-grid")).filter((element) => element.dataset.catalogPhotoCode === code).forEach((element) => { const status = $("small", element); if (status) status.textContent = "Foto ainda não disponível"; });
+    }
+  } catch {
+    catalogPhotoQueued.delete(code);
+    $$('[data-catalog-photo-code]', $("#catalog-database-grid")).filter((element) => element.dataset.catalogPhotoCode === code).forEach((element) => { const status = $("small", element); if (status) status.textContent = "Não foi possível buscar a foto"; });
+  } finally {
+    catalogPhotoWorkers -= 1;
+    if (catalogPhotoQueue.length) runCatalogPhotoWorker();
+  }
 }
 
 function renderProfile() {
