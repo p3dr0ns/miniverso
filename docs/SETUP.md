@@ -1,77 +1,113 @@
-# Colocar o login próprio no ar
+# Configuração e publicação
 
-O Miniverso gera e confere os códigos no seu próprio servidor. A Cloudflare hospeda o site, o servidor e o banco de autenticação. O Brevo entrega os e-mails. Cada serviço tem seus limites e condições; o envio não é ilimitado.
+Este guia prepara o Miniverso para desenvolvimento local e publicação no Cloudflare Workers. O Worker entrega o frontend, processa a API e acessa o banco D1 na mesma origem.
 
-## 1. Preparar o envio de e-mail
+## Pré-requisitos
 
-1. Crie ou entre na sua conta em [Brevo](https://www.brevo.com/).
-2. Na área de remetentes, adicione o endereço que enviará os códigos e conclua a verificação desse endereço.
-3. Na área de SMTP e API, crie uma **chave de API**. O sistema usa a API, portanto escolha a chave de API, e não a senha SMTP.
-4. Mantenha a chave com você: ela será informada no terminal local. A chave não deve ser colada na conversa nem no código público.
+- [Node.js 24 ou superior](https://nodejs.org/)
+- Uma conta na [Cloudflare](https://dash.cloudflare.com/sign-up)
+- Acesso a Workers e D1 nessa conta
 
-O Brevo pode exigir a validação da conta ou a autenticação de um domínio para aprovar os envios. Para endereços de provedores gratuitos, pode substituir o remetente por um endereço técnico próprio. Confira as [regras de remetentes do Brevo](https://help.brevo.com/hc/en-us/articles/14925263522578-Comply-with-Gmail-Yahoo-and-Microsoft-s-requirements-for-email-senders).
+## Desenvolvimento local
 
-## 2. Configurar no computador
-
-Instale uma versão LTS do [Node.js](https://nodejs.org/) igual ou superior a 24. Depois abra o terminal do VS Code na pasta do projeto e execute:
+Na raiz do projeto, instale as dependências e gere a configuração privada:
 
 ```powershell
 npm ci
 npm run setup
 ```
 
-O assistente pede a chave de API e o endereço do remetente confirmado. A chave fica oculta durante a digitação. Ele gera o segredo da autenticação e salva as configurações em `.dev.vars`, que está ignorado pelo Git.
+O assistente cria `.dev.vars` com um `AUTH_SECRET` aleatório. Esse segredo participa da proteção das senhas e deve permanecer privado. O arquivo já está ignorado pelo Git.
 
-Ao executar o assistente outra vez, ele preserva o segredo existente. Para alterar a chave ou o remetente:
-
-```powershell
-npm run setup -- --edit
-```
-
-Para conferir se o remetente está ativo no Brevo sem enviar um e-mail:
-
-```powershell
-npm run setup -- --check
-```
-
-## 3. Testar no computador
+Inicie a aplicação:
 
 ```powershell
 npm run dev
 ```
 
-O comando gera o site, prepara o banco local e inicia tudo em `http://localhost:8787`. Abra esse endereço, informe seu e-mail e solicite um código. O envio usa a conta real do Brevo e consome sua cota de e-mails. Digite os oito números recebidos no site. O código expira em dez minutos.
+Acesse `http://localhost:8787`. O comando gera o frontend, aplica as migrações no D1 local e inicia o Worker.
 
-Os dados de autenticação do teste ficam no banco local. Eles são separados do banco publicado.
+Os dados locais ficam em `.wrangler/` e são separados do ambiente publicado.
 
-## 4. Conectar a hospedagem
+## Verificações
 
-Crie uma conta na [Cloudflare](https://dash.cloudflare.com/sign-up). No terminal do projeto, execute:
+Antes de publicar, execute:
+
+```powershell
+npm test
+npm run build
+```
+
+Os testes usam serviços locais e não alteram o banco remoto.
+
+## Conectar a Cloudflare
+
+Autentique o Wrangler pelo navegador:
 
 ```powershell
 npm exec wrangler login
 ```
 
-Conclua a autorização no navegador. Ela permite que o comando de publicação use Workers e D1 na sua conta.
+Confira a conta conectada:
 
-## 5. Publicar
+```powershell
+npm exec wrangler whoami
+```
 
-Antes da mudança de endereço, faça uma cópia das coleções que já existem no navegador do site antigo. Coleções e fotos continuam locais: um endereço novo não consegue ler os dados salvos pelo GitHub Pages, e as contas antigas não são migradas automaticamente.
+O arquivo `wrangler.json` define o Worker, a pasta de arquivos estáticos e o binding `AUTH_DB`. O comando de deploy confirma a conta, localiza ou cria o banco e atualiza o identificador local quando necessário.
+
+## Publicar
+
+Execute:
 
 ```powershell
 npm run deploy
 ```
 
-O comando confere o login na Cloudflare, gera o site, cria ou reutiliza o banco de autenticação, aplica as migrações e publica o servidor com os segredos na mesma versão. Se houver mais de uma conta, ele pede que você escolha a conta correta.
+O processo:
 
-Ao terminar, a Cloudflare informa o novo endereço HTTPS do Miniverso. Abra esse endereço para fazer o teste de acesso. A interface e a API precisam funcionar juntas nesse endereço; o GitHub Pages sozinho não executa o servidor de autenticação.
+1. valida a configuração local;
+2. gera o frontend de produção;
+3. localiza ou cria o banco D1;
+4. aplica as migrações remotas;
+5. envia o `AUTH_SECRET` como segredo do Worker;
+6. publica o site e a API.
 
-## Quando algo não funcionar
+Ao final, o Wrangler mostra o endereço público do Worker. O GitHub Pages não é usado porque não executa a API nem oferece o banco D1 necessário à autenticação.
 
-- **Falta configurar uma variável:** execute `npm run setup`.
-- **Remetente não ativo:** confirme o endereço no painel do Brevo; depois execute `npm run setup -- --check`.
-- **Conta Cloudflare não conectada:** execute `npm exec wrangler login` novamente.
-- **Envio temporariamente bloqueado:** aguarde o tempo mostrado pelo site. Além dos limites do Miniverso, o provedor de e-mail mantém suas próprias cotas.
-- **Alterei uma credencial:** execute `npm run setup -- --edit` e depois `npm run deploy` para atualizar o servidor publicado.
+## Segurança
 
-Referências: [Workers com arquivos estáticos](https://developers.cloudflare.com/workers/static-assets/), [banco D1](https://developers.cloudflare.com/d1/), [segredos em Workers](https://developers.cloudflare.com/workers/configuration/secrets/), [API de envio do Brevo](https://developers.brevo.com/reference/send-transac-email).
+- Nunca adicione `.dev.vars` ao Git.
+- Não use o prefixo `VITE_` em segredos; variáveis com esse prefixo podem ser incorporadas ao frontend.
+- Preserve o mesmo `AUTH_SECRET` após criar usuários. Trocá-lo invalida a verificação das senhas existentes.
+- Restrinja o acesso à conta Cloudflare e revise os tokens ativos periodicamente.
+- Faça backup antes de alterar ou remover o banco D1 de produção.
+
+## Solução de problemas
+
+### `AUTH_SECRET` ausente ou inválido
+
+Execute `npm run setup` novamente. O segredo precisa ter pelo menos 32 caracteres.
+
+### Conta Cloudflare incorreta
+
+Execute `npm exec wrangler logout`, autentique novamente e confirme com `npm exec wrangler whoami`.
+
+### Banco D1 não encontrado
+
+Confirme o binding `AUTH_DB` em `wrangler.json`. O deploy tenta localizar o banco pelo nome e pode criá-lo quando ainda não existe.
+
+### Erro depois de uma atualização
+
+Aplique as migrações e publique novamente com `npm run deploy`. Consulte os logs com:
+
+```powershell
+npm exec wrangler tail
+```
+
+## Referências
+
+- [Cloudflare Workers com arquivos estáticos](https://developers.cloudflare.com/workers/static-assets/)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [Segredos em Workers](https://developers.cloudflare.com/workers/configuration/secrets/)
+- [Wrangler](https://developers.cloudflare.com/workers/wrangler/)
