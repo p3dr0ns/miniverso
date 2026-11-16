@@ -460,7 +460,8 @@ function setView(view) {
   activeView = view;
   $$(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
   $$("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
-  $("#crumb-current").textContent = view === "collection" ? "MINHA COLEÇÃO" : view === "planner" ? "EXPOSITORES" : "MEU PERFIL";
+  const crumb = $("#crumb-current");
+  if (crumb) crumb.textContent = view === "collection" ? "MINHA COLEÇÃO" : view === "planner" ? "EXPOSITORES" : "MEU PERFIL";
   if (view === "planner") renderPlanner();
   if (view === "profile") renderProfile();
 }
