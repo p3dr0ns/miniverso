@@ -89,6 +89,7 @@ export async function updateAccount(email, password = "") {
   return user;
 }
 export const findCatalogItem = async (code) => (await authRequest(`../catalog/${encodeURIComponent(code)}`)).item;
+export const searchCatalogItems = async (query = "") => (await authRequest(`../catalog?query=${encodeURIComponent(query)}`)).items;
 export const contributeCatalogItem = async (item) => authRequest("../catalog/contribute", { method: "POST", body: item });
 
 export async function signOut() {

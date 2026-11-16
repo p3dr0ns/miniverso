@@ -1,5 +1,5 @@
 import "./style.css";
-import { contributeCatalogItem, createAccount, findCatalogItem, getCurrentSession, onAuthStateChange, signIn, signOut, updateAccount } from "./auth.js";
+import { contributeCatalogItem, createAccount, findCatalogItem, getCurrentSession, onAuthStateChange, searchCatalogItems, signIn, signOut, updateAccount } from "./auth.js";
 
 const LEGACY_STORAGE_KEY = "garagem-mvp-v1";
 const STORAGE_MIGRATION_KEY = "miniverso-storage-migrated-to-user";
@@ -8,7 +8,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const freshState = () => ({ minis: [], showcases: [], placements: {}, drafts: {}, activeShowcaseId: null });
 let currentUserId = null;
 let state = freshState();
-let activeView = "collection";
+let activeView = "catalog";
 let toastTimer;
 let modalReturnFocus = null;
 let draggedMiniId = null;
@@ -18,6 +18,8 @@ let photoData = "";
 let profileAvatarDraft = "";
 let profileCoverDraft = "";
 let collectionPage = 1;
+let catalogItems = [];
+let catalogRequest = 0;
 const COLLECTION_PAGE_SIZE = 40;
 let collectionLayout = localStorage.getItem("miniverso-collection-layout") || "list";
 const THEME_KEY = "miniverso-theme";
@@ -396,6 +398,7 @@ function enterAuthenticatedApp(session) {
   $("#mobile-nav").hidden = false;
   renderCollection();
   renderPlanner();
+  loadCatalog();
 }
 
 function leaveAuthenticatedApp() {
@@ -471,9 +474,40 @@ function setView(view) {
   const crumb = $("#crumb-current");
   if (crumb) crumb.textContent = view === "collection" ? "MINHA COLEÇÃO" : view === "planner" ? "EXPOSITORES" : "MEU PERFIL";
   if (view === "planner") renderPlanner();
+  if (view === "catalog") loadCatalog();
   if (view === "profile") renderProfile();
   if (view === "profile-edit") renderProfileEditor();
   if (view === "account-edit") renderAccountEditor();
+}
+
+async function loadCatalog() {
+  const request = ++catalogRequest;
+  const query = $("#catalog-search-query").value.trim();
+  $("#catalog-result-summary").textContent = "Consultando o banco de miniaturas…";
+  try {
+    const items = await searchCatalogItems(query);
+    if (request !== catalogRequest || activeView !== "catalog") return;
+    catalogItems = Array.isArray(items) ? items : [];
+    const makers = [...new Set(catalogItems.map((item) => item.maker).filter(Boolean))].sort((a,b) => a.localeCompare(b,"pt-BR"));
+    const scales = [...new Set(catalogItems.map((item) => item.scale).filter(Boolean))].sort();
+    const maker = $("#catalog-maker-filter").value, scale = $("#catalog-scale-filter").value;
+    $("#catalog-maker-filter").innerHTML = `<option value="">Todos os fabricantes</option>${makers.map((value) => `<option>${escapeHtml(value)}</option>`).join("")}`;
+    $("#catalog-scale-filter").innerHTML = `<option value="">Todas as escalas</option>${scales.map((value) => `<option>${escapeHtml(value)}</option>`).join("")}`;
+    if (makers.includes(maker)) $("#catalog-maker-filter").value = maker;
+    if (scales.includes(scale)) $("#catalog-scale-filter").value = scale;
+    renderCatalogResults();
+  } catch (error) {
+    if (request === catalogRequest) { catalogItems = []; $("#catalog-result-summary").textContent = error.message || "Não foi possível consultar o catálogo."; renderCatalogResults(); }
+  }
+}
+
+function renderCatalogResults() {
+  const maker = $("#catalog-maker-filter").value, scale = $("#catalog-scale-filter").value;
+  const items = catalogItems.filter((item) => (!maker || item.maker === maker) && (!scale || item.scale === scale));
+  $("#catalog-result-summary").textContent = `${items.length} miniatura(s) encontrada(s) no banco de dados`;
+  $("#catalog-empty").hidden = items.length > 0;
+  const grid = $("#catalog-database-grid"); grid.hidden = !items.length;
+  grid.innerHTML = items.map((item) => `<article class="catalog-item-card"><div class="catalog-item-photo">${item.photo ? `<img src="${escapeHtml(item.photo)}" alt="${escapeHtml(item.name)}" />` : `<div class="photo-placeholder" style="--car-color:${escapeHtml(item.color || "#d8753f")}"><i class="placeholder-window"></i><i class="placeholder-body"></i><i class="placeholder-wheel"></i></div>`}</div><div class="catalog-item-info"><span>${escapeHtml(item.maker || "Fabricante não informado")}</span><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.series,item.releaseYear,item.scale].filter(Boolean).join(" · ") || "Detalhes não informados")}</p><div><code>${escapeHtml(item.code)}</code><button class="button button-primary" data-add-catalog-code="${escapeHtml(item.code)}" type="button">Adicionar à coleção</button></div></div></article>`).join("");
 }
 
 function renderProfile() {
@@ -966,7 +1000,9 @@ function deleteShowcase() {
 
 document.addEventListener("click", (event) => {
   const viewButton = event.target.closest("[data-view]");
-  if (viewButton) { setView(viewButton.dataset.view); return; }
+  if (viewButton) { $("#collections-menu").hidden = true; setView(viewButton.dataset.view); return; }
+  const catalogCode = event.target.closest("[data-add-catalog-code]");
+  if (catalogCode) { openMiniForm(null, catalogCode.dataset.addCatalogCode); return; }
   const editMini = event.target.closest("[data-edit-mini]");
   if (editMini) { openMiniForm(editMini.dataset.editMini); return; }
   const deleteMini = event.target.closest("[data-delete-mini]");
@@ -1151,6 +1187,14 @@ $("#add-showcase-button").addEventListener("click", () => openShowcaseForm());
 $("#empty-showcase-button").addEventListener("click", () => openShowcaseForm());
 $("#edit-showcase-button").addEventListener("click", () => openShowcaseForm(state.activeShowcaseId));
 $("#delete-showcase-button").addEventListener("click", deleteShowcase);
+$("#catalog-search-form").addEventListener("submit", (event) => { event.preventDefault(); loadCatalog(); });
+$("#catalog-maker-filter").addEventListener("change", renderCatalogResults);
+$("#catalog-scale-filter").addEventListener("change", renderCatalogResults);
+$("#collections-menu-trigger").addEventListener("click", (event) => { event.stopPropagation(); $("#collections-menu").hidden = !$("#collections-menu").hidden; });
+$("#collections-menu").addEventListener("click", (event) => event.stopPropagation());
+$("#collections-menu").querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { $("#collections-menu").hidden = true; setView(button.dataset.view); }));
+$("#create-collection-link").addEventListener("click", () => { $("#collections-menu").hidden = true; setView("collection"); showToast("Sua coleção pessoal está pronta para receber miniaturas."); });
+document.addEventListener("click", () => { $("#collections-menu").hidden = true; });
 $("#search-input").addEventListener("input", () => { collectionPage = 1; renderCollection(); });
 $("#filter-location").addEventListener("change", () => { collectionPage = 1; renderCollection(); });
 $("#filter-maker").addEventListener("change", () => { collectionPage = 1; renderCollection(); });

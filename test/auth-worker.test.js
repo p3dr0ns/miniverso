@@ -54,4 +54,6 @@ test("catalog uses the curated reference data and registered image", async (t) =
   await f.db.prepare("INSERT INTO catalog_reference(code,data_json,variants_json,images_json,source_name,updated_at) VALUES(?,?,?,?,?,?)").bind("ABC12", JSON.stringify(data), JSON.stringify([data]), JSON.stringify([image]), "Base Miniverso 2015–2026", 1).run();
   const found = await f.request("/api/catalog/ABC12", { method: "GET", headers: { Cookie: cookie } }); const item = (await found.json()).item;
   assert.equal(item.name, data.name); assert.equal(item.color, "Azul"); assert.equal(item.photo, image); assert.deepEqual(item.images, [image]);
+  const listing = await f.request("/api/catalog?query=Carro", { method: "GET", headers: { Cookie: cookie } }), listed = (await listing.json()).items;
+  assert.equal(listing.status, 200); assert.equal(listed.length, 1); assert.equal(listed[0].code, "ABC12"); assert.equal(listed[0].photo, image);
 });
