@@ -15,6 +15,8 @@ let draggedMiniId = null;
 let draggedSlot = null;
 let selectedMiniId = null;
 let photoData = "";
+let profileAvatarDraft = "";
+let profileCoverDraft = "";
 let collectionPage = 1;
 const COLLECTION_PAGE_SIZE = 40;
 let collectionLayout = localStorage.getItem("miniverso-collection-layout") || "list";
@@ -26,7 +28,7 @@ function getProfile(user, suggestedName = "") {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(profileKey(user.id)) || "{}"); } catch { saved = {}; }
   const fallback = suggestedName.trim() || String(user.email || "Colecionador").split("@")[0] || "Colecionador";
-  const profile = { name: String(saved.name || fallback).slice(0, 50), bio: String(saved.bio || "").slice(0, 300), joinedAt: saved.joinedAt || new Date().toISOString(), email: user.email || "" };
+  const profile = { name: String(saved.name || fallback).slice(0, 50), bio: String(saved.bio || "").slice(0, 300), avatar: String(saved.avatar || ""), cover: String(saved.cover || ""), showEmail: Boolean(saved.showEmail), showWhatsapp: Boolean(saved.showWhatsapp), whatsapp: String(saved.whatsapp || "").slice(0, 20), joinedAt: saved.joinedAt || new Date().toISOString(), email: user.email || "" };
   if (!saved.joinedAt) localStorage.setItem(profileKey(user.id), JSON.stringify({ ...saved, name: profile.name, bio: profile.bio, joinedAt: profile.joinedAt }));
   return profile;
 }
@@ -37,6 +39,11 @@ function saveProfile(updates, userId = currentUserId) {
   const next = { ...saved, ...updates, joinedAt: saved.joinedAt || new Date().toISOString() };
   next.name = String(next.name || "").trim().slice(0, 50);
   next.bio = String(next.bio || "").trim().slice(0, 300);
+  next.avatar = String(next.avatar || "");
+  next.cover = String(next.cover || "");
+  next.showEmail = Boolean(next.showEmail);
+  next.showWhatsapp = Boolean(next.showWhatsapp);
+  next.whatsapp = String(next.whatsapp || "").trim().slice(0, 20);
   if (!next.name) return false;
   localStorage.setItem(profileKey(userId), JSON.stringify(next));
   $$(".profile-name-copy").forEach((element) => { element.textContent = next.name; });
@@ -464,6 +471,7 @@ function setView(view) {
   if (crumb) crumb.textContent = view === "collection" ? "MINHA COLEÇÃO" : view === "planner" ? "EXPOSITORES" : "MEU PERFIL";
   if (view === "planner") renderPlanner();
   if (view === "profile") renderProfile();
+  if (view === "profile-edit") renderProfileEditor();
 }
 
 function renderProfile() {
@@ -475,11 +483,64 @@ function renderProfile() {
   $("#profile-page-name").textContent = profile.name;
   $("#profile-page-handle").textContent = `@${handle}`;
   $("#profile-page-avatar").textContent = profile.name.charAt(0).toLocaleUpperCase("pt-BR");
+  $("#profile-page-avatar").classList.toggle("has-image", Boolean(profile.avatar));
+  $("#profile-page-avatar").style.backgroundImage = profile.avatar ? `url("${profile.avatar}")` : "";
+  $(".profile-cover").classList.toggle("has-image", Boolean(profile.cover));
+  $(".profile-cover").style.backgroundImage = profile.cover ? `url("${profile.cover}")` : "";
   $("#profile-page-bio").textContent = profile.bio || "Você ainda não escreveu sobre sua coleção.";
   $("#profile-member-since").textContent = Number.isNaN(joinedAt.valueOf()) ? "—" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(joinedAt);
+  const publicEmail = $("#profile-public-email");
+  publicEmail.hidden = !profile.showEmail;
+  $("strong", publicEmail).textContent = email;
+  const publicWhatsapp = $("#profile-public-whatsapp");
+  publicWhatsapp.hidden = !profile.showWhatsapp || !profile.whatsapp;
+  $("strong", publicWhatsapp).textContent = profile.whatsapp;
   $("#profile-mini-count").textContent = state.minis.reduce((total, mini) => total + (mini.quantity || 1), 0);
   $("#profile-showcase-count").textContent = state.showcases.length;
   $("#profile-displayed-count").textContent = state.minis.filter(isDisplayed).reduce((total, mini) => total + (mini.quantity || 1), 0);
+}
+
+function renderProfileEditor() {
+  if (!currentUserId) return;
+  const profile = getProfile({ id: currentUserId, email: $("#user-email-desktop").textContent });
+  profileAvatarDraft = profile.avatar;
+  profileCoverDraft = profile.cover;
+  $("#profile-edit-name").value = profile.name;
+  $("#profile-edit-bio").value = profile.bio;
+  $("#profile-bio-count").textContent = `${profile.bio.length} / 300`;
+  $("#profile-show-email").checked = profile.showEmail;
+  $("#profile-show-whatsapp").checked = profile.showWhatsapp;
+  $("#profile-whatsapp").value = profile.whatsapp;
+  updateProfileImagePreviews(profile.name);
+}
+
+function updateProfileImagePreviews(name = $("#profile-edit-name").value) {
+  const avatar = $("#profile-avatar-preview");
+  avatar.textContent = profileAvatarDraft ? "" : String(name || "C").charAt(0).toLocaleUpperCase("pt-BR");
+  avatar.classList.toggle("has-image", Boolean(profileAvatarDraft));
+  avatar.style.backgroundImage = profileAvatarDraft ? `url("${profileAvatarDraft}")` : "";
+  const cover = $("#profile-cover-preview");
+  cover.classList.toggle("has-image", Boolean(profileCoverDraft));
+  cover.style.backgroundImage = profileCoverDraft ? `url("${profileCoverDraft}")` : "";
+}
+
+function prepareProfileImage(file, width, height, quality = .82) {
+  return new Promise((resolve, reject) => {
+    if (!file?.type.startsWith("image/") || file.size > 8 * 1024 * 1024) { reject(new Error("Escolha uma imagem de até 8 MB.")); return; }
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) { URL.revokeObjectURL(url); reject(new Error("Não foi possível processar a imagem.")); return; }
+      const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale, drawHeight = image.naturalHeight * scale;
+      context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+      URL.revokeObjectURL(url); resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não foi possível ler a imagem.")); };
+    image.src = url;
+  });
 }
 
 function renderCollection() {
@@ -983,11 +1044,8 @@ function openProfileSummary() {
 
 function openProfileEditor() {
   closeAccountMenu();
-  const currentName = $("#profile-name").textContent;
-  const profile = getProfile({ id: currentUserId, email: $("#user-email-desktop").textContent });
-  modal(`<div class="modal-head"><div><p class="eyebrow">MINHA CONTA</p><h2>Editar meu perfil</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><form id="profile-form" class="profile-form"><label for="profile-name-input">Nome exibido</label><input id="profile-name-input" maxlength="50" required value="${escapeHtml(currentName)}" /><label for="profile-bio-input">Sobre mim</label><textarea id="profile-bio-input" maxlength="300" rows="4" placeholder="Conte sobre sua coleção…">${escapeHtml(profile.bio)}</textarea><label>E-mail da conta</label><input value="${escapeHtml($("#user-email-desktop").textContent)}" disabled /><small>O e-mail identifica sua conta e ainda não pode ser alterado.</small><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" type="submit">Salvar alterações</button></div></form>`, true);
-  $("#profile-form").addEventListener("submit", (event) => { event.preventDefault(); if (saveProfile({ name: $("#profile-name-input").value, bio: $("#profile-bio-input").value })) { closeModal(); showToast("Perfil atualizado."); } });
-  $("#profile-name-input").focus();
+  setView("profile-edit");
+  scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function openAppearanceEditor() {
@@ -1016,6 +1074,17 @@ $("#account-menu").addEventListener("click", (event) => event.stopPropagation())
 document.addEventListener("click", () => { $("#account-menu").hidden = true; });
 $("#view-profile-button").addEventListener("click", openProfileSummary);
 $("#profile-page-edit").addEventListener("click", openProfileEditor);
+$("#profile-edit-back").addEventListener("click", openProfileSummary);
+$("#profile-edit-cancel").addEventListener("click", openProfileSummary);
+$("#profile-edit-name").addEventListener("input", () => updateProfileImagePreviews());
+$("#profile-edit-bio").addEventListener("input", (event) => { $("#profile-bio-count").textContent = `${event.currentTarget.value.length} / 300`; });
+$("#profile-avatar-input").addEventListener("change", async (event) => { try { profileAvatarDraft = await prepareProfileImage(event.currentTarget.files?.[0], 400, 400, .85); updateProfileImagePreviews(); } catch (error) { showToast(error.message); } finally { event.currentTarget.value = ""; } });
+$("#profile-cover-input").addEventListener("change", async (event) => { try { profileCoverDraft = await prepareProfileImage(event.currentTarget.files?.[0], 1200, 400, .82); updateProfileImagePreviews(); } catch (error) { showToast(error.message); } finally { event.currentTarget.value = ""; } });
+$("#profile-edit-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const saved = saveProfile({ name: $("#profile-edit-name").value, bio: $("#profile-edit-bio").value, avatar: profileAvatarDraft, cover: profileCoverDraft, showEmail: $("#profile-show-email").checked, showWhatsapp: $("#profile-show-whatsapp").checked, whatsapp: $("#profile-whatsapp").value });
+  if (saved) { showToast("Perfil atualizado."); openProfileSummary(); }
+});
 $("#edit-appearance-button").addEventListener("click", openAppearanceEditor);
 $("#edit-profile-button").addEventListener("click", openProfileEditor);
 $("#support-project-button").addEventListener("click", openSupportProject);

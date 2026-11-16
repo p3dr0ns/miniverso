@@ -203,7 +203,7 @@
             <div class="profile-layout">
               <aside class="profile-column">
                 <article class="profile-identity-card"><div id="profile-page-avatar" class="profile-page-avatar">C</div><h1 id="profile-page-name">Colecionador</h1><p id="profile-page-handle">@colecionador</p><div class="profile-rating" aria-label="Pontuação do perfil">★★★★★<small>0 pontos de ranking</small></div><button id="profile-page-edit" class="button button-primary" type="button">✎ Editar meu perfil</button></article>
-                <article class="profile-info-card"><h2>Informações</h2><span>Membro desde:</span><strong id="profile-member-since">—</strong></article>
+                <article class="profile-info-card"><h2>Informações</h2><span>Membro desde:</span><strong id="profile-member-since">—</strong><div id="profile-public-email" class="profile-contact" hidden><span>E-mail:</span><strong></strong></div><div id="profile-public-whatsapp" class="profile-contact" hidden><span>WhatsApp:</span><strong></strong></div></article>
                 <article class="profile-info-card"><h2>Amigos <span>(0)</span></h2><p>Você ainda não adicionou amigos.</p></article>
               </aside>
               <div class="profile-content-column">
@@ -212,6 +212,22 @@
                 <article class="profile-content-card profile-personal-stats"><h2>Meu acervo no Miniverso</h2><div><span><strong id="profile-mini-count">0</strong> miniaturas</span><span><strong id="profile-showcase-count">0</strong> expositores</span><span><strong id="profile-displayed-count">0</strong> em exposição</span></div></article>
               </div>
             </div>
+          </div>
+          <footer class="page-footer"><span>MINIVERSO © 2026</span><span>SEU ACERVO, SUA HISTÓRIA <b>✳</b></span></footer>
+        </section>
+
+        <section id="profile-edit-view" class="view">
+          <div class="profile-edit-page">
+            <div class="profile-edit-heading"><button id="profile-edit-back" type="button">← Voltar ao perfil</button><h1>Editar perfil</h1><p>Personalize como sua identidade aparece no Miniverso.</p></div>
+            <form id="profile-edit-form">
+              <fieldset class="profile-edit-section"><legend>Imagens do perfil</legend><div class="profile-images-grid">
+                <div class="profile-image-control"><h2>Avatar atual</h2><div id="profile-avatar-preview" class="profile-avatar-preview">C</div><label class="profile-file-button">Trocar avatar<input id="profile-avatar-input" type="file" accept="image/*" /></label><small>Recomendado: imagem quadrada de 200 × 200 px</small></div>
+                <div class="profile-image-control cover-control"><h2>Capa atual</h2><div id="profile-cover-preview" class="profile-cover-preview"><span>MEU MINIVERSO</span></div><label class="profile-file-button">Trocar imagem de capa<input id="profile-cover-input" type="file" accept="image/*" /></label><small>Recomendado: imagem de 1200 × 400 px</small></div>
+              </div></fieldset>
+              <fieldset class="profile-edit-section"><legend>Sobre mim</legend><div class="profile-edit-fields"><label for="profile-edit-name">Nome exibido</label><input id="profile-edit-name" maxlength="50" required /><label for="profile-edit-bio">Sua biografia</label><textarea id="profile-edit-bio" maxlength="300" rows="5" placeholder="Fale um pouco sobre você, sua paixão por miniaturas e suas séries favoritas…"></textarea><span id="profile-bio-count">0 / 300</span></div></fieldset>
+              <fieldset class="profile-edit-section"><legend>Configurações de privacidade</legend><div class="profile-privacy"><p>Decida quais informações de contato compartilhar no seu perfil.</p><label><input id="profile-show-email" type="checkbox" /><i></i><span>Exibir meu e-mail no perfil</span></label><label><input id="profile-show-whatsapp" type="checkbox" /><i></i><span>Exibir meu WhatsApp no perfil</span></label><input id="profile-whatsapp" type="tel" maxlength="20" placeholder="+55 (00) 00000-0000" /></div></fieldset>
+              <div class="profile-edit-actions"><button class="button button-quiet" id="profile-edit-cancel" type="button">Cancelar</button><button class="button button-primary" type="submit">▣ Salvar alterações</button></div>
+            </form>
           </div>
           <footer class="page-footer"><span>MINIVERSO © 2026</span><span>SEU ACERVO, SUA HISTÓRIA <b>✳</b></span></footer>
         </section>
