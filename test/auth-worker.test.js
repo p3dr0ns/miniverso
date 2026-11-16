@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
-import { handleRequest } from "../server/worker.js";
+import { handleRequest, sameCatalogModel } from "../server/worker.js";
 const ORIGIN = "https://miniverso.example", EMAIL = "collector@example.com", PASSWORD = "password123";
 const migrations = await Promise.all(["0001_auth.sql", "0002_password_auth.sql", "0003_catalog.sql", "0004_reference_catalog.sql", "0005_user_state.sql"].map((name) => readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8")));
 async function fixture(t) {
@@ -15,6 +15,11 @@ async function fixture(t) {
   return { db, env, request };
 }
 async function error(response, status, code) { assert.equal(response.status, status); assert.equal((await response.json()).code, code); }
+test("catalog image validation rejects a different model", () => {
+  assert.equal(sameCatalogModel("Ferrari LaFerrari", "LaFerrari"), true);
+  assert.equal(sameCatalogModel("Ferrari LaFerrari", "GMC Syclone"), false);
+  assert.equal(sameCatalogModel("Nissan Skyline GT-R (R34)", "Nissan Skyline GT-R R34"), true);
+});
 test("registration hashes the password and creates a secure session", async (t) => {
   const f = await fixture(t), response = await f.request("/api/auth/register", { body: { email: " COLLECTOR@EXAMPLE.COM ", password: PASSWORD } });
   assert.equal(response.status, 200); const cookie = response.headers.get("set-cookie"); assert.match(cookie, /HttpOnly/i); assert.match(cookie, /Secure/i); assert.match(cookie, /SameSite=Lax/i);
