@@ -19,6 +19,22 @@ let collectionPage = 1;
 const COLLECTION_PAGE_SIZE = 40;
 let collectionLayout = localStorage.getItem("miniverso-collection-layout") || "list";
 const THEME_KEY = "miniverso-theme";
+const PROFILE_KEY_PREFIX = "miniverso-profile";
+
+const profileKey = (userId = currentUserId) => `${PROFILE_KEY_PREFIX}:${userId}`;
+function getProfile(user, suggestedName = "") {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(profileKey(user.id)) || "{}"); } catch { saved = {}; }
+  const fallback = suggestedName.trim() || String(user.email || "Colecionador").split("@")[0] || "Colecionador";
+  return { name: String(saved.name || fallback).slice(0, 50), email: user.email || "" };
+}
+function saveProfileName(name, userId = currentUserId) {
+  const cleanName = String(name || "").trim().slice(0, 50);
+  if (!cleanName || !userId) return false;
+  localStorage.setItem(profileKey(userId), JSON.stringify({ name: cleanName }));
+  $$(".profile-name-copy").forEach((element) => { element.textContent = cleanName; });
+  return true;
+}
 
 function applyTheme(theme) {
   const selected = theme === "dark" ? "dark" : "light";
@@ -354,10 +370,9 @@ function enterAuthenticatedApp(session) {
   currentUserId = session.user.id;
   state = loadState();
   const email = session.user.email || "Conta conectada";
+  const profile = getProfile(session.user);
   $("#user-email-desktop").textContent = email;
-  $("#account-menu-email").textContent = email;
-  $(".avatar").textContent = email.charAt(0).toLocaleUpperCase("pt-BR");
-  $(".avatar").title = email;
+  $$(".profile-name-copy").forEach((element) => { element.textContent = profile.name; });
   $("#auth-screen").hidden = true;
   closeAuthPanel();
   $("#app-shell").hidden = false;
@@ -882,6 +897,7 @@ $("#register-form").addEventListener("submit", async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   const email = String(data.get("email") || "").trim().toLocaleLowerCase("pt-BR");
+  const name = String(data.get("name") || "").trim();
   const password = String(data.get("password") || "");
   if (password !== String(data.get("passwordConfirm") || "")) {
     setAuthMessage("As duas senhas precisam ser iguais.", true);
@@ -891,6 +907,7 @@ $("#register-form").addEventListener("submit", async (event) => {
   setAuthMessage("Criando sua conta...");
   try {
     const session = await createAccount(email, password);
+    if (session?.user?.id) saveProfileName(name, session.user.id);
     enterAuthenticatedApp(session);
   } catch (error) {
     setAuthMessage(authErrorMessage(error), true);
@@ -929,6 +946,35 @@ $$('[data-logout]').forEach((button) => button.addEventListener("click", async (
   }
 }));
 
+function closeAccountMenu() { $("#account-menu").hidden = true; }
+
+function openProfileSummary() {
+  closeAccountMenu();
+  const name = $("#profile-name").textContent;
+  const email = $("#user-email-desktop").textContent;
+  modal(`<div class="modal-head"><div><p class="eyebrow">PERFIL DO COLECIONADOR</p><h2>${escapeHtml(name)}</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="profile-summary"><div class="profile-summary-avatar">${escapeHtml(name.charAt(0).toLocaleUpperCase("pt-BR"))}</div><div><span>Nome</span><strong>${escapeHtml(name)}</strong><span>E-mail</span><strong>${escapeHtml(email)}</strong><span>Coleção</span><strong>${state.minis.length} miniatura(s) · ${state.showcases.length} expositor(es)</strong></div></div><div class="modal-actions"><button class="button button-primary" data-modal-close type="button">Fechar</button></div>`, true);
+}
+
+function openProfileEditor() {
+  closeAccountMenu();
+  const currentName = $("#profile-name").textContent;
+  modal(`<div class="modal-head"><div><p class="eyebrow">MINHA CONTA</p><h2>Editar meus dados</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><form id="profile-form" class="profile-form"><label for="profile-name-input">Nome exibido</label><input id="profile-name-input" maxlength="50" required value="${escapeHtml(currentName)}" /><label>E-mail da conta</label><input value="${escapeHtml($("#user-email-desktop").textContent)}" disabled /><small>O e-mail identifica sua conta e ainda não pode ser alterado.</small><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" type="submit">Salvar alterações</button></div></form>`, true);
+  $("#profile-form").addEventListener("submit", (event) => { event.preventDefault(); if (saveProfileName($("#profile-name-input").value)) { closeModal(); showToast("Perfil atualizado."); } });
+  $("#profile-name-input").focus();
+}
+
+function openAppearanceEditor() {
+  closeAccountMenu();
+  const dark = document.documentElement.dataset.theme === "dark";
+  modal(`<div class="modal-head"><div><p class="eyebrow">APARÊNCIA</p><h2>Escolha o tema</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="appearance-options"><button class="${dark ? "" : "active"}" data-select-theme="light" type="button"><i>☀</i><strong>Claro</strong><span>Visual leve e luminoso</span></button><button class="${dark ? "active" : ""}" data-select-theme="dark" type="button"><i>☾</i><strong>Escuro</strong><span>Confortável em pouca luz</span></button></div>`, true);
+  $$('[data-select-theme]').forEach((button) => button.addEventListener("click", () => { applyTheme(button.dataset.selectTheme); closeModal(); showToast("Aparência atualizada."); }));
+}
+
+function openSupportProject() {
+  closeAccountMenu();
+  modal(`<div class="modal-head"><div><p class="eyebrow">APOIE O MINIVERSO</p><h2>Ajude o projeto a crescer</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><p class="modal-description">A área de apoio será disponibilizada em breve. Enquanto isso, compartilhar o Miniverso com outros colecionadores já ajuda muito.</p><div class="modal-actions" style="padding:0 21px 19px;border:0"><button class="button button-primary" data-modal-close type="button">Entendi</button></div>`, true);
+}
+
 $("#add-mini-button").addEventListener("click", () => openMiniForm());
 $("#empty-add-button").addEventListener("click", () => openMiniForm());
 $$('[data-theme-toggle]').forEach((button) => button.addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")));
@@ -941,6 +987,10 @@ $$('[data-account-trigger]').forEach((button) => button.addEventListener("click"
 }));
 $("#account-menu").addEventListener("click", (event) => event.stopPropagation());
 document.addEventListener("click", () => { $("#account-menu").hidden = true; });
+$("#view-profile-button").addEventListener("click", openProfileSummary);
+$("#edit-appearance-button").addEventListener("click", openAppearanceEditor);
+$("#edit-profile-button").addEventListener("click", openProfileEditor);
+$("#support-project-button").addEventListener("click", openSupportProject);
 $("#csv-file-input").addEventListener("change", async (event) => {
   const input = event.currentTarget;
   const file = input.files?.[0];

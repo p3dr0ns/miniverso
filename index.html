@@ -62,7 +62,7 @@
           <p class="eyebrow">SUA COLEÇÃO, SEU ESPAÇO</p>
           <h1 id="auth-title">Acesse seu<br /><span>Miniverso.</span></h1>
           <div class="auth-tabs" role="tablist" aria-label="Escolha como acessar"><button id="auth-register-tab" class="active" type="button" role="tab">Criar conta</button><button id="auth-login-tab" type="button" role="tab">Já tenho conta</button></div>
-          <form id="register-form" class="auth-form"><label for="register-email">Seu e-mail</label><input id="register-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" /><label for="register-password">Crie uma senha</label><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Pelo menos 8 caracteres" /><label for="register-password-confirm">Confirme sua senha</label><input id="register-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Digite a senha novamente" /><button class="button button-primary" type="submit">Criar minha conta</button></form>
+          <form id="register-form" class="auth-form"><label for="register-name">Seu nome</label><input id="register-name" name="name" type="text" autocomplete="name" required maxlength="50" placeholder="Como devemos chamar você?" /><label for="register-email">Seu e-mail</label><input id="register-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" /><label for="register-password">Crie uma senha</label><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Pelo menos 8 caracteres" /><label for="register-password-confirm">Confirme sua senha</label><input id="register-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Digite a senha novamente" /><button class="button button-primary" type="submit">Criar minha conta</button></form>
           <form id="login-form" class="auth-form" hidden><label for="login-email">Seu e-mail</label><input id="login-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" /><label for="login-password">Sua senha</label><input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Digite sua senha" /><button class="button button-primary" type="submit">Entrar</button></form>
           <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p><p class="auth-privacy">Sua senha é protegida e nunca é armazenada em texto legível.</p>
         </section>
@@ -77,11 +77,11 @@
         </a>
         <p class="side-label">SEU ESPAÇO</p>
         <nav class="main-nav" aria-label="Navegação principal">
-          <button class="nav-link active" data-view="collection"><span class="nav-icon">▦</span> Minha coleção</button>
-          <button class="nav-link" data-view="planner"><span class="nav-icon">▤</span> Expositores</button>
+          <button class="nav-link active" data-view="collection">Catálogo</button>
+          <button class="nav-link" data-view="planner">Meus Expositores</button>
         </nav>
         <button class="theme-toggle" data-theme-toggle type="button" aria-label="Ativar tema escuro"><span aria-hidden="true">☾</span></button>
-        <button class="desktop-account account-trigger" data-account-trigger type="button"><span id="user-email-desktop"></span><span aria-hidden="true">⌄</span></button>
+        <span id="user-email-desktop" hidden></span><button class="profile-trigger account-trigger" data-account-trigger type="button" aria-label="Abrir menu do perfil"><span class="profile-name-copy">Colecionador</span><i aria-hidden="true">⌃</i><b aria-hidden="true">♟</b></button>
         <div class="sidebar-bottom">
           <div class="garage-card">
             <span class="garage-icon">✳</span>
@@ -94,12 +94,11 @@
 
       <main class="main-content">
         <header class="topbar">
-          <div class="mobile-brand"><span class="brand-mark"><span></span><span></span><span></span></span> MINIVERSO<span class="brand-period">.</span></div>
-          <div class="crumb"><span>SEU ESPAÇO</span><span class="crumb-slash">/</span><strong id="crumb-current">MINHA COLEÇÃO</strong></div>
+          <div class="topbar-navigation"><div class="mobile-brand"><span class="brand-mark"><span></span><span></span><span></span></span> MINIVERSO<span class="brand-period">.</span></div><nav aria-label="Navegação principal"><button class="top-nav-link active" data-view="collection">Catálogo</button><button class="top-nav-link" data-view="planner">Meus Expositores</button></nav></div>
           <div class="topbar-right">
             <span class="local-status"><span></span> Salvo neste dispositivo</span>
             <button class="theme-toggle mobile-theme-toggle" data-theme-toggle type="button" aria-label="Ativar tema escuro"><span aria-hidden="true">☾</span></button>
-            <button class="avatar account-trigger" data-account-trigger type="button" aria-label="Abrir configurações da conta">G</button>
+            <button class="profile-trigger account-trigger" data-account-trigger type="button" aria-label="Abrir menu do perfil"><span id="profile-name" class="profile-name-copy">Colecionador</span><i aria-hidden="true">⌃</i><b aria-hidden="true">♟</b></button>
           </div>
         </header>
 
@@ -110,7 +109,7 @@
               <h1>Minha <span>coleção</span></h1>
               <p class="heading-copy">Cada mini conta uma história. Deixe a sua organizada.</p>
             </div>
-            <div class="heading-actions"><button class="button button-primary" id="add-mini-button"><span class="plus">＋</span> Adicionar miniatura</button></div>
+            <div class="heading-actions"><button class="button button-quiet" id="import-csv-button" type="button">Importar CSV</button><button class="button button-quiet" id="enrich-collection-button" type="button">Buscar fotos</button><button class="button button-quiet" id="export-csv-button" type="button">Exportar</button><button class="button button-primary" id="add-mini-button"><span class="plus">＋</span> Adicionar miniatura</button></div>
             <input id="csv-file-input" type="file" accept=".csv,text/csv" hidden />
           </div>
 
@@ -207,11 +206,11 @@
     </nav>
     <div id="modal-root"></div>
     <div id="account-menu" class="account-menu" hidden>
-      <div class="account-menu-head"><strong>Configurações</strong><span id="account-menu-email"></span></div>
-      <button id="import-csv-button" type="button"><span>⇧</span><div><strong>Importar coleção</strong><small>Adicionar miniaturas de um CSV</small></div></button>
-      <button id="enrich-collection-button" type="button"><span>✦</span><div><strong>Buscar fotos em massa</strong><small>Completar itens sem foto pelo código</small></div></button>
-      <button id="export-csv-button" type="button"><span>⇩</span><div><strong>Exportar coleção</strong><small>Baixar uma cópia em CSV</small></div></button>
-      <button class="account-menu-logout" data-logout type="button"><span>↪</span><div><strong>Sair da conta</strong></div></button>
+      <button id="view-profile-button" type="button"><span>▣</span><div><strong>Ver meu perfil</strong></div></button>
+      <button id="edit-appearance-button" type="button"><span>◉</span><div><strong>Editar aparência do perfil</strong></div></button>
+      <button id="edit-profile-button" type="button"><span>□</span><div><strong>Editar meus dados</strong></div></button>
+      <button id="support-project-button" class="support-project" type="button"><span>♢</span><div><strong>Apoie o projeto</strong></div></button>
+      <button class="account-menu-logout" data-logout type="button"><span>⇥</span><div><strong>Sair</strong></div></button>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.js"></script>
