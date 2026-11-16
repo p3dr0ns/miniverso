@@ -5,7 +5,9 @@ const LEGACY_STORAGE_KEY = "garagem-mvp-v1";
 const STORAGE_MIGRATION_KEY = "miniverso-storage-migrated-to-user";
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const freshState = () => ({ minis: [], showcases: [], placements: {}, drafts: {}, activeShowcaseId: null });
+const PRIMARY_COLLECTION_ID = "collection-primary";
+const defaultCollection = () => ({ id: PRIMARY_COLLECTION_ID, name: "Minha coleção", description: "", createdAt: new Date().toISOString() });
+const freshState = () => ({ collections: [defaultCollection()], activeCollectionId: PRIMARY_COLLECTION_ID, minis: [], showcases: [], placements: {}, drafts: {}, activeShowcaseId: null });
 let currentUserId = null;
 let state = freshState();
 let activeView = "catalog";
@@ -129,6 +131,7 @@ function confirmCsvImport(records, ignored) {
   modal(`<div class="modal-head"><div><p class="eyebrow">IMPORTAR COLEÇÃO</p><h2>Confirmar arquivo CSV</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="csv-summary"><strong>${records.length}</strong><p>miniatura(s) pronta(s) para importar${ignored.length ? ` · ${ignored.length} linha(s) sem nome serão ignoradas` : ""}.</p><small>Os itens serão adicionados à coleção atual. Posições em expositores não são importadas.</small>${withCode ? `<label class="bulk-import-option"><input id="enrich-after-import" type="checkbox" checked /><span><b>Buscar fotos e dados automaticamente</b><small>${withCode} item(ns) possuem código para consulta.</small></span></label>` : ""}</div><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" id="confirm-csv-import" type="button">Importar coleção</button></div>`, true);
   $("#confirm-csv-import").addEventListener("click", () => {
     const enrichAfterImport = Boolean($("#enrich-after-import")?.checked);
+    records.forEach((record) => { record.collectionId = getActiveCollection().id; });
     const previous = state.minis;
     state.minis = [...records, ...state.minis];
     if (!saveState()) { state.minis = previous; return; }
@@ -142,10 +145,10 @@ function exportCollectionCsv() {
   const fields = [["nome","name"],["fabricante","maker"],["escala","scale"],["cor","color"],["codigo","catalogCode"],["ano","releaseYear"],["linha","category"],["serie","series"],["quantidade","quantity"],["condicao","condition"],["situacao","displayStatus"]];
   const cell = (value) => `"${String(value ?? "").replaceAll('"','""')}"`;
   const lines = [fields.map(([label]) => cell(label)).join(";")];
-  state.minis.forEach((mini) => lines.push(fields.map(([,field]) => cell(field === "condition" ? (mini.condition === "loose" ? "Loose" : "Blister") : field === "displayStatus" ? (isDisplayed(mini) ? "Exposto" : "Guardado") : mini[field])).join(";")));
+  activeMinis().forEach((mini) => lines.push(fields.map(([,field]) => cell(field === "condition" ? (mini.condition === "loose" ? "Loose" : "Blister") : field === "displayStatus" ? (isDisplayed(mini) ? "Exposto" : "Guardado") : mini[field])).join(";")));
   const blob = new Blob(["\uFEFF", lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `miniverso-colecao-${new Date().toISOString().slice(0,10)}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  showToast(`${state.minis.length} miniatura(s) exportada(s).`);
+  showToast(`${activeMinis().length} miniatura(s) exportada(s).`);
 }
 
 const CATALOG_FILL_FIELDS = ["maker", "vehicleBrand", "model", "scale", "color", "releaseYear", "category", "series", "seriesNumber", "wheelType", "steeringSide", "editionSize", "exclusivity"];
@@ -170,8 +173,8 @@ function applyCatalogData(mini, item) {
 
 function enrichCollection(ids = null, startImmediately = false) {
   const selectedIds = ids ? new Set(ids) : null;
-  const eligible = state.minis.filter((mini) => (!selectedIds || selectedIds.has(mini.id)) && !mini.photo && String(mini.catalogCode || "").trim());
-  const withoutCode = state.minis.filter((mini) => (!selectedIds || selectedIds.has(mini.id)) && !mini.photo && !String(mini.catalogCode || "").trim()).length;
+  const eligible = activeMinis().filter((mini) => (!selectedIds || selectedIds.has(mini.id)) && !mini.photo && String(mini.catalogCode || "").trim());
+  const withoutCode = activeMinis().filter((mini) => (!selectedIds || selectedIds.has(mini.id)) && !mini.photo && !String(mini.catalogCode || "").trim()).length;
   if (!eligible.length) {
     showToast(withoutCode ? "Nenhum item sem foto possui código para consulta." : "Todas as miniaturas com código já possuem foto.");
     return;
@@ -260,13 +263,17 @@ function storageKey() {
 
 function normalizeState(raw) {
   if (!raw || typeof raw !== "object") return freshState();
+  const collections = Array.isArray(raw.collections) ? raw.collections.filter((item) => item && typeof item.id === "string" && typeof item.name === "string" && item.name.trim()).map((item) => ({ id: item.id, name: item.name.trim().slice(0, 60), description: String(item.description || "").slice(0, 240), createdAt: item.createdAt || new Date().toISOString() })) : [];
+  if (!collections.length) collections.push(defaultCollection());
+  const collectionIds = new Set(collections.map((item) => item.id));
+  const activeCollectionId = collectionIds.has(raw.activeCollectionId) ? raw.activeCollectionId : collections[0].id;
   const minis = Array.isArray(raw.minis)
-    ? raw.minis.filter((mini) => mini && typeof mini.id === "string" && typeof mini.name === "string" && mini.name.trim()).map((mini) => ({ ...mini, quantity: Math.min(999, Math.max(1, Number.parseInt(mini.quantity, 10) || 1)), condition: mini.condition === "loose" || mini.sealed === false ? "loose" : "blister", displayStatus: mini.displayStatus === "displayed" ? "displayed" : "stored" }))
+    ? raw.minis.filter((mini) => mini && typeof mini.id === "string" && typeof mini.name === "string" && mini.name.trim()).map((mini) => ({ ...mini, collectionId: collectionIds.has(mini.collectionId) ? mini.collectionId : collections[0].id, quantity: Math.min(999, Math.max(1, Number.parseInt(mini.quantity, 10) || 1)), condition: mini.condition === "loose" || mini.sealed === false ? "loose" : "blister", displayStatus: mini.displayStatus === "displayed" ? "displayed" : "stored" }))
     : [];
   const miniIds = new Set(minis.map((mini) => mini.id));
   const showcases = Array.isArray(raw.showcases)
     ? raw.showcases.filter((item) => item && typeof item.id === "string" && typeof item.name === "string").map((item) => ({
-        ...item,
+      ...item, collectionId: collectionIds.has(item.collectionId) ? item.collectionId : collections[0].id,
         rows: Math.min(10, Math.max(1, Number.parseInt(item.rows, 10) || 1)),
         columns: Math.min(12, Math.max(1, Number.parseInt(item.columns, 10) || 1))
       }))
@@ -301,11 +308,13 @@ function normalizeState(raw) {
     });
   });
   return {
+    collections,
+    activeCollectionId,
     minis,
     showcases,
     placements,
     drafts,
-    activeShowcaseId: showcaseMap.has(raw.activeShowcaseId) ? raw.activeShowcaseId : showcases[0]?.id || null
+    activeShowcaseId: showcaseMap.has(raw.activeShowcaseId) && showcaseMap.get(raw.activeShowcaseId).collectionId === activeCollectionId ? raw.activeShowcaseId : showcases.find((item) => item.collectionId === activeCollectionId)?.id || null
   };
 }
 
@@ -358,7 +367,7 @@ async function synchronizeCloudState(userId) {
       state = normalizeState(remoteState);
       state.minis.forEach((mini) => { if (localPhotos.has(mini.id)) mini.photo = localPhotos.get(mini.id); });
       localStorage.setItem(storageKey(), JSON.stringify(state));
-      renderCollection(); renderPlanner(); if (activeView === "profile") renderProfile();
+      renderCollectionsMenu(); renderCollection(); renderPlanner(); if (activeView === "profile") renderProfile();
       setSyncStatus("Salvo na nuvem", "saved");
     } else {
       cloudStateReady = true;
@@ -472,6 +481,7 @@ function enterAuthenticatedApp(session) {
   $("#mobile-nav").hidden = false;
   renderCollection();
   renderPlanner();
+  renderCollectionsMenu();
   loadCatalog();
   synchronizeCloudState(currentUserId);
 }
@@ -518,6 +528,45 @@ function getMini(id) {
   return state.minis.find((mini) => mini.id === id);
 }
 
+function getActiveCollection() {
+  return state.collections.find((collection) => collection.id === state.activeCollectionId) || state.collections[0];
+}
+
+function activeMinis() {
+  return state.minis.filter((mini) => mini.collectionId === getActiveCollection()?.id);
+}
+
+function activeShowcases() {
+  return state.showcases.filter((showcase) => showcase.collectionId === getActiveCollection()?.id);
+}
+
+function renderCollectionsMenu() {
+  const root = $("#collection-menu-items"); if (!root) return;
+  root.innerHTML = state.collections.map((collection) => `<button class="collection-menu-item ${collection.id === state.activeCollectionId ? "active" : ""}" data-collection-id="${collection.id}" type="button"><span>◇</span>${escapeHtml(collection.name)}<small>${state.minis.filter((mini) => mini.collectionId === collection.id).length}</small></button>`).join("");
+}
+
+function selectCollection(collectionId, view = "collection") {
+  if (!state.collections.some((collection) => collection.id === collectionId)) return;
+  state.activeCollectionId = collectionId;
+  state.activeShowcaseId = state.showcases.find((showcase) => showcase.collectionId === collectionId)?.id || null;
+  collectionPage = 1;
+  saveState(); renderCollectionsMenu(); renderCollection(); renderPlanner(); setView(view);
+  $("#collections-menu").hidden = true;
+}
+
+function openCreateCollection() {
+  $("#collections-menu").hidden = true;
+  modal(`<div class="modal-head"><div><p class="eyebrow">NOVA COLEÇÃO</p><h2>Criar coleção</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><form id="create-collection-form" class="profile-form"><label for="new-collection-name">Nome da coleção</label><input id="new-collection-name" maxlength="60" required placeholder="Ex.: Hot Wheels Premium" /><label for="new-collection-description">Descrição</label><textarea id="new-collection-description" maxlength="240" rows="3" placeholder="Conte o que faz parte desta coleção…"></textarea><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" type="submit">Criar coleção</button></div></form>`, true);
+  $("#create-collection-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const collection = { id: createId(), name: $("#new-collection-name").value.trim(), description: $("#new-collection-description").value.trim(), createdAt: new Date().toISOString() };
+    if (!collection.name) return;
+    state.collections.push(collection); state.activeCollectionId = collection.id; state.activeShowcaseId = null;
+    closeModal(); saveState(); renderCollectionsMenu(); renderCollection(); renderPlanner(); setView("collection"); showToast(`Coleção “${collection.name}” criada.`);
+  });
+  $("#new-collection-name").focus();
+}
+
 function getShowcase(id) {
   return state.showcases.find((showcase) => showcase.id === id);
 }
@@ -537,11 +586,12 @@ function positionLabel(id) {
 }
 
 function updateStats() {
-  $("#stat-total").textContent = state.minis.reduce((total, mini) => total + (mini.quantity || 1), 0);
-  const displayed = state.minis.filter(isDisplayed).reduce((total, mini) => total + (mini.quantity || 1), 0);
+  const minis = activeMinis();
+  $("#stat-total").textContent = minis.reduce((total, mini) => total + (mini.quantity || 1), 0);
+  const displayed = minis.filter(isDisplayed).reduce((total, mini) => total + (mini.quantity || 1), 0);
   $("#stat-displayed").textContent = displayed;
-  $("#stat-stored").textContent = state.minis.reduce((total, mini) => total + (mini.quantity || 1), 0) - displayed;
-  $("#stat-showcases").textContent = state.showcases.length;
+  $("#stat-stored").textContent = minis.reduce((total, mini) => total + (mini.quantity || 1), 0) - displayed;
+  $("#stat-showcases").textContent = activeShowcases().length;
 }
 
 function setView(view) {
@@ -722,7 +772,10 @@ function renderAccountEditor() {
 }
 
 function renderCollection() {
-  const makers = [...new Set(state.minis.map((mini) => mini.maker).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const collectionMinis = activeMinis();
+  const collection = getActiveCollection();
+  const heading = $("#collection-view .page-heading h1"); if (heading && collection) heading.innerHTML = `${escapeHtml(collection.name)} <span>(${collectionMinis.length})</span>`;
+  const makers = [...new Set(collectionMinis.map((mini) => mini.maker).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const makerFilter = $("#filter-maker");
   const selectedMaker = makerFilter.value;
   makerFilter.innerHTML = `<option value="all">Todos os fabricantes</option>${makers.map((maker) => `<option value="${escapeHtml(maker)}">${escapeHtml(maker)}</option>`).join("")}`;
@@ -731,7 +784,7 @@ function renderCollection() {
   const query = normalizeText($("#search-input").value.trim());
   const location = $("#filter-location").value;
   const maker = makerFilter.value;
-  let filtered = state.minis.filter((mini) => {
+  let filtered = collectionMinis.filter((mini) => {
     const text = normalizeText([mini.name, mini.maker, mini.vehicleBrand, mini.model, mini.scale, mini.color, mini.catalogCode, mini.releaseYear, mini.category, mini.series, mini.seriesNumber, mini.wheelType, mini.steeringSide, mini.editionSize, mini.exclusivity].join(" "));
     const displayed = isDisplayed(mini);
     return (!query || text.includes(query)) && (location === "all" || (location === "displayed" ? displayed : !displayed)) && (maker === "all" || mini.maker === maker);
@@ -745,7 +798,7 @@ function renderCollection() {
   grid.classList.toggle("grid-mode", collectionLayout === "grid");
   grid.innerHTML = visible.map((mini) => miniCard(mini)).join("");
   const pagination = $("#collection-pagination"); pagination.hidden = filtered.length <= COLLECTION_PAGE_SIZE; $("#page-summary").textContent = `Página ${collectionPage} de ${pages} · ${filtered.length} itens`; $("#page-previous").disabled = collectionPage <= 1; $("#page-next").disabled = collectionPage >= pages;
-  const hasItems = state.minis.length > 0;
+  const hasItems = collectionMinis.length > 0;
   $("#empty-state").hidden = hasItems;
   $("#no-results").hidden = !hasItems || filtered.length > 0;
   grid.hidden = !hasItems || filtered.length === 0;
@@ -901,6 +954,7 @@ function openMiniForm(id = null, initialCode = "") {
     const data = Object.fromEntries(form.entries());
     const record = {
       id: mini?.id || createId(),
+      collectionId: mini?.collectionId || getActiveCollection().id,
       name: data.name.trim(),
       maker: (data.maker || "").trim(),
       vehicleBrand: (data.vehicleBrand || "").trim(),
@@ -974,7 +1028,7 @@ function openShowcaseForm(id = null) {
     const columns = Number(form.get("columns"));
     if (rows * columns > 96) { showToast("O expositor pode ter no máximo 96 vagas."); return; }
     const previousSize = showcase ? showcase.rows * showcase.columns : 0;
-    const record = { id: showcase?.id || createId(), name: String(form.get("name")).trim(), rows, columns };
+    const record = { id: showcase?.id || createId(), collectionId: showcase?.collectionId || getActiveCollection().id, name: String(form.get("name")).trim(), rows, columns };
     if (showcase) {
       state.showcases = state.showcases.map((item) => item.id === showcase.id ? record : item);
       if (rows * columns < previousSize) {
@@ -1009,14 +1063,15 @@ function currentDraft(showcase) {
 }
 
 function renderPlanner() {
-  const empty = state.showcases.length === 0;
+  const showcases = activeShowcases();
+  const empty = showcases.length === 0;
   $("#planner-empty").hidden = !empty;
   $("#planner-content").hidden = empty;
   if (empty) { updateStats(); return; }
-  if (!getShowcase(state.activeShowcaseId)) state.activeShowcaseId = state.showcases[0].id;
+  if (!showcases.some((item) => item.id === state.activeShowcaseId)) state.activeShowcaseId = showcases[0].id;
   const showcase = getShowcase(state.activeShowcaseId);
   const draft = currentDraft(showcase);
-  $("#showcase-tabs").innerHTML = state.showcases.map((item) => `<button class="showcase-tab ${item.id === showcase.id ? "active" : ""}" data-showcase="${item.id}">${escapeHtml(item.name)}</button>`).join("");
+  $("#showcase-tabs").innerHTML = showcases.map((item) => `<button class="showcase-tab ${item.id === showcase.id ? "active" : ""}" data-showcase="${item.id}">${escapeHtml(item.name)}</button>`).join("");
   $("#active-showcase-title").textContent = showcase.name;
   $("#active-showcase-meta").textContent = `${showcase.rows} linhas · ${showcase.columns} colunas`;
   $("#grid-dimensions").textContent = `${showcase.columns} COLUNAS × ${showcase.rows} LINHAS`;
@@ -1037,14 +1092,15 @@ function renderPlanner() {
 function renderAvailable(showcase, draft) {
   const query = normalizeText($("#available-search").value.trim());
   const inDraft = new Set(draft.filter(Boolean));
-  const available = state.minis.filter((mini) => !inDraft.has(mini.id) && normalizeText([mini.name, mini.maker, mini.vehicleBrand, mini.model, mini.catalogCode, mini.series].join(" ")).includes(query));
+  const collectionMinis = activeMinis();
+  const available = collectionMinis.filter((mini) => !inDraft.has(mini.id) && normalizeText([mini.name, mini.maker, mini.vehicleBrand, mini.model, mini.catalogCode, mini.series].join(" ")).includes(query));
   $("#available-count").textContent = available.length;
   $("#available-list").innerHTML = available.length ? available.map((mini) => {
     const thumb = mini.photo ? `<img class="available-thumb" src="${mini.photo}" alt="" />` : `<div class="available-thumb available-thumb-fallback"><div class="photo-placeholder" style="--car-color:${escapeHtml(mini.color || "#d8753f")}"><i class="placeholder-window"></i><i class="placeholder-body"></i><i class="placeholder-wheel"></i></div></div>`;
     const realLocation = state.placements[mini.id] && getShowcase(state.placements[mini.id].showcaseId);
     const suffix = realLocation && realLocation.id !== showcase.id ? ` · hoje: ${escapeHtml(realLocation.name)}` : "";
     return `<div class="available-item ${mini.id === selectedMiniId ? "selected" : ""}" draggable="true" data-drag-mini="${mini.id}" tabindex="0" role="button" aria-pressed="${mini.id === selectedMiniId}" aria-label="Selecionar ou arrastar ${escapeHtml(mini.name)}">${thumb}<div class="available-info"><strong>${escapeHtml(mini.name)}</strong><span>${mini.id === selectedMiniId ? "Selecionada · toque em uma vaga para posicionar" : `${escapeHtml(mini.maker || "Fabricante não informado")}${suffix}`}</span></div></div>`;
-  }).join("") : `<div class="available-empty">${state.minis.length ? "Todas as miniaturas já estão neste rascunho." : "Adicione miniaturas à coleção para começar a montar o expositor."}</div>`;
+  }).join("") : `<div class="available-empty">${collectionMinis.length ? "Todas as miniaturas já estão neste rascunho." : "Adicione miniaturas à coleção para começar a montar o expositor."}</div>`;
 }
 
 function saveDraft(showcaseId, draft) {
@@ -1112,7 +1168,7 @@ function deleteShowcase() {
     state.showcases = state.showcases.filter((item) => item.id !== showcase.id);
     Object.keys(state.placements).forEach((miniId) => { if (state.placements[miniId].showcaseId === showcase.id) delete state.placements[miniId]; });
     delete state.drafts[showcase.id];
-    state.activeShowcaseId = state.showcases[0]?.id || null;
+    state.activeShowcaseId = activeShowcases()[0]?.id || null;
     closeModal(); saveState(); renderPlanner(); renderCollection(); showToast("Expositor excluído. As minis estão guardadas.");
   });
 }
@@ -1312,7 +1368,8 @@ $("#catalog-scale-filter").addEventListener("change", renderCatalogResults);
 $("#collections-menu-trigger").addEventListener("click", (event) => { event.stopPropagation(); $("#collections-menu").hidden = !$("#collections-menu").hidden; });
 $("#collections-menu").addEventListener("click", (event) => event.stopPropagation());
 $("#collections-menu").querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { $("#collections-menu").hidden = true; setView(button.dataset.view); }));
-$("#create-collection-link").addEventListener("click", () => { $("#collections-menu").hidden = true; setView("collection"); showToast("Sua coleção pessoal está pronta para receber miniaturas."); });
+$("#collection-menu-items").addEventListener("click", (event) => { const button = event.target.closest("[data-collection-id]"); if (button) selectCollection(button.dataset.collectionId); });
+$("#create-collection-link").addEventListener("click", openCreateCollection);
 document.addEventListener("click", () => { $("#collections-menu").hidden = true; });
 $("#search-input").addEventListener("input", () => { collectionPage = 1; renderCollection(); });
 $("#filter-location").addEventListener("change", () => { collectionPage = 1; renderCollection(); });
