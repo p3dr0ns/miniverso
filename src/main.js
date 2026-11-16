@@ -26,15 +26,24 @@ function getProfile(user, suggestedName = "") {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(profileKey(user.id)) || "{}"); } catch { saved = {}; }
   const fallback = suggestedName.trim() || String(user.email || "Colecionador").split("@")[0] || "Colecionador";
-  return { name: String(saved.name || fallback).slice(0, 50), email: user.email || "" };
+  const profile = { name: String(saved.name || fallback).slice(0, 50), bio: String(saved.bio || "").slice(0, 300), joinedAt: saved.joinedAt || new Date().toISOString(), email: user.email || "" };
+  if (!saved.joinedAt) localStorage.setItem(profileKey(user.id), JSON.stringify({ ...saved, name: profile.name, bio: profile.bio, joinedAt: profile.joinedAt }));
+  return profile;
 }
-function saveProfileName(name, userId = currentUserId) {
-  const cleanName = String(name || "").trim().slice(0, 50);
-  if (!cleanName || !userId) return false;
-  localStorage.setItem(profileKey(userId), JSON.stringify({ name: cleanName }));
-  $$(".profile-name-copy").forEach((element) => { element.textContent = cleanName; });
+function saveProfile(updates, userId = currentUserId) {
+  if (!userId) return false;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(profileKey(userId)) || "{}"); } catch { saved = {}; }
+  const next = { ...saved, ...updates, joinedAt: saved.joinedAt || new Date().toISOString() };
+  next.name = String(next.name || "").trim().slice(0, 50);
+  next.bio = String(next.bio || "").trim().slice(0, 300);
+  if (!next.name) return false;
+  localStorage.setItem(profileKey(userId), JSON.stringify(next));
+  $$(".profile-name-copy").forEach((element) => { element.textContent = next.name; });
+  renderProfile();
   return true;
 }
+const saveProfileName = (name, userId = currentUserId) => saveProfile({ name }, userId);
 
 function applyTheme(theme) {
   const selected = theme === "dark" ? "dark" : "light";
@@ -451,8 +460,25 @@ function setView(view) {
   activeView = view;
   $$(".view").forEach((section) => section.classList.toggle("active-view", section.id === `${view}-view`));
   $$("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
-  $("#crumb-current").textContent = view === "collection" ? "MINHA COLEÇÃO" : "EXPOSITORES";
+  $("#crumb-current").textContent = view === "collection" ? "MINHA COLEÇÃO" : view === "planner" ? "EXPOSITORES" : "MEU PERFIL";
   if (view === "planner") renderPlanner();
+  if (view === "profile") renderProfile();
+}
+
+function renderProfile() {
+  if (!currentUserId || !$("#profile-view")) return;
+  const email = $("#user-email-desktop").textContent;
+  const profile = getProfile({ id: currentUserId, email });
+  const handle = normalizeText(email.split("@")[0] || profile.name).replace(/[^a-z0-9._-]/g, "") || "colecionador";
+  const joinedAt = new Date(profile.joinedAt);
+  $("#profile-page-name").textContent = profile.name;
+  $("#profile-page-handle").textContent = `@${handle}`;
+  $("#profile-page-avatar").textContent = profile.name.charAt(0).toLocaleUpperCase("pt-BR");
+  $("#profile-page-bio").textContent = profile.bio || "Você ainda não escreveu sobre sua coleção.";
+  $("#profile-member-since").textContent = Number.isNaN(joinedAt.valueOf()) ? "—" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(joinedAt);
+  $("#profile-mini-count").textContent = state.minis.reduce((total, mini) => total + (mini.quantity || 1), 0);
+  $("#profile-showcase-count").textContent = state.showcases.length;
+  $("#profile-displayed-count").textContent = state.minis.filter(isDisplayed).reduce((total, mini) => total + (mini.quantity || 1), 0);
 }
 
 function renderCollection() {
@@ -950,16 +976,16 @@ function closeAccountMenu() { $("#account-menu").hidden = true; }
 
 function openProfileSummary() {
   closeAccountMenu();
-  const name = $("#profile-name").textContent;
-  const email = $("#user-email-desktop").textContent;
-  modal(`<div class="modal-head"><div><p class="eyebrow">PERFIL DO COLECIONADOR</p><h2>${escapeHtml(name)}</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="profile-summary"><div class="profile-summary-avatar">${escapeHtml(name.charAt(0).toLocaleUpperCase("pt-BR"))}</div><div><span>Nome</span><strong>${escapeHtml(name)}</strong><span>E-mail</span><strong>${escapeHtml(email)}</strong><span>Coleção</span><strong>${state.minis.length} miniatura(s) · ${state.showcases.length} expositor(es)</strong></div></div><div class="modal-actions"><button class="button button-primary" data-modal-close type="button">Fechar</button></div>`, true);
+  setView("profile");
+  scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function openProfileEditor() {
   closeAccountMenu();
   const currentName = $("#profile-name").textContent;
-  modal(`<div class="modal-head"><div><p class="eyebrow">MINHA CONTA</p><h2>Editar meus dados</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><form id="profile-form" class="profile-form"><label for="profile-name-input">Nome exibido</label><input id="profile-name-input" maxlength="50" required value="${escapeHtml(currentName)}" /><label>E-mail da conta</label><input value="${escapeHtml($("#user-email-desktop").textContent)}" disabled /><small>O e-mail identifica sua conta e ainda não pode ser alterado.</small><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" type="submit">Salvar alterações</button></div></form>`, true);
-  $("#profile-form").addEventListener("submit", (event) => { event.preventDefault(); if (saveProfileName($("#profile-name-input").value)) { closeModal(); showToast("Perfil atualizado."); } });
+  const profile = getProfile({ id: currentUserId, email: $("#user-email-desktop").textContent });
+  modal(`<div class="modal-head"><div><p class="eyebrow">MINHA CONTA</p><h2>Editar meu perfil</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><form id="profile-form" class="profile-form"><label for="profile-name-input">Nome exibido</label><input id="profile-name-input" maxlength="50" required value="${escapeHtml(currentName)}" /><label for="profile-bio-input">Sobre mim</label><textarea id="profile-bio-input" maxlength="300" rows="4" placeholder="Conte sobre sua coleção…">${escapeHtml(profile.bio)}</textarea><label>E-mail da conta</label><input value="${escapeHtml($("#user-email-desktop").textContent)}" disabled /><small>O e-mail identifica sua conta e ainda não pode ser alterado.</small><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" type="submit">Salvar alterações</button></div></form>`, true);
+  $("#profile-form").addEventListener("submit", (event) => { event.preventDefault(); if (saveProfile({ name: $("#profile-name-input").value, bio: $("#profile-bio-input").value })) { closeModal(); showToast("Perfil atualizado."); } });
   $("#profile-name-input").focus();
 }
 
@@ -988,6 +1014,7 @@ $$('[data-account-trigger]').forEach((button) => button.addEventListener("click"
 $("#account-menu").addEventListener("click", (event) => event.stopPropagation());
 document.addEventListener("click", () => { $("#account-menu").hidden = true; });
 $("#view-profile-button").addEventListener("click", openProfileSummary);
+$("#profile-page-edit").addEventListener("click", openProfileEditor);
 $("#edit-appearance-button").addEventListener("click", openAppearanceEditor);
 $("#edit-profile-button").addEventListener("click", openProfileEditor);
 $("#support-project-button").addEventListener("click", openSupportProject);
