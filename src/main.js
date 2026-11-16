@@ -328,10 +328,24 @@ function showAuthMode(mode) {
   $("#login-form").hidden = registering;
   $("#show-register-button").classList.toggle("active", registering);
   $("#show-login-button").classList.toggle("active", !registering);
-  $("#show-register-button").setAttribute("aria-selected", String(registering));
-  $("#show-login-button").setAttribute("aria-selected", String(!registering));
+  $("#auth-register-tab").classList.toggle("active", registering);
+  $("#auth-login-tab").classList.toggle("active", !registering);
+  $("#auth-register-tab").setAttribute("aria-selected", String(registering));
+  $("#auth-login-tab").setAttribute("aria-selected", String(!registering));
   setAuthMessage("");
-  $(registering ? "#register-email" : "#login-email").focus();
+  if (!$("#landing-auth-panel").hidden) $(registering ? "#register-email" : "#login-email").focus();
+}
+
+function openAuthPanel(mode) {
+  $("#landing-auth-panel").hidden = false;
+  document.body.classList.add("auth-panel-open");
+  showAuthMode(mode);
+}
+
+function closeAuthPanel() {
+  $("#landing-auth-panel").hidden = true;
+  document.body.classList.remove("auth-panel-open");
+  setAuthMessage("");
 }
 
 function enterAuthenticatedApp(session) {
@@ -345,6 +359,7 @@ function enterAuthenticatedApp(session) {
   $(".avatar").textContent = email.charAt(0).toLocaleUpperCase("pt-BR");
   $(".avatar").title = email;
   $("#auth-screen").hidden = true;
+  closeAuthPanel();
   $("#app-shell").hidden = false;
   $("#mobile-nav").hidden = false;
   renderCollection();
@@ -854,8 +869,13 @@ document.addEventListener("click", (event) => {
   }
 });
 
-$("#show-register-button").addEventListener("click", () => showAuthMode("register"));
-$("#show-login-button").addEventListener("click", () => showAuthMode("login"));
+$("#show-register-button").addEventListener("click", () => openAuthPanel("register"));
+$("#show-login-button").addEventListener("click", () => openAuthPanel("login"));
+$("#auth-register-tab").addEventListener("click", () => showAuthMode("register"));
+$("#auth-login-tab").addEventListener("click", () => showAuthMode("login"));
+$$('[data-open-register]').forEach((button) => button.addEventListener("click", () => openAuthPanel("register")));
+$("#close-auth-panel").addEventListener("click", closeAuthPanel);
+$("#landing-auth-panel").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeAuthPanel(); });
 
 $("#register-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -954,6 +974,7 @@ $("#reset-draft-button").addEventListener("click", resetDraft);
 $("#apply-layout-button").addEventListener("click", applyLayout);
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("#landing-auth-panel").hidden) { closeAuthPanel(); return; }
   if (event.key === "Tab" && $(".modal")) {
     const focusable = $$('button:not([disabled]):not([hidden]), input:not([disabled]):not([hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', $(".modal"));
     if (focusable.length) {

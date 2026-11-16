@@ -13,37 +13,60 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main id="auth-screen" class="auth-screen">
-      <section class="auth-card" aria-labelledby="auth-title">
-        <button class="theme-toggle auth-theme-toggle" data-theme-toggle type="button" aria-label="Ativar tema escuro"><span aria-hidden="true">☾</span></button>
-        <div class="auth-brand"><span class="brand-mark"><span></span><span></span><span></span></span><strong>MINIVERSO<span>.</span></strong></div>
-        <p class="eyebrow">SUA COLEÇÃO, SEU ESPAÇO</p>
-        <h1 id="auth-title">Bem-vindo ao<br /><span>Miniverso.</span></h1>
-        <p class="auth-copy">Crie sua conta ou entre para acessar sua coleção.</p>
-        <div class="auth-tabs" role="tablist" aria-label="Escolha como acessar">
-          <button id="show-register-button" class="active" type="button" role="tab" aria-selected="true">Criar conta</button>
-          <button id="show-login-button" type="button" role="tab" aria-selected="false">Já tenho conta</button>
+    <main id="auth-screen" class="landing-page">
+      <header class="landing-header">
+        <a class="landing-brand" href="#inicio" aria-label="Miniverso, início"><span class="brand-mark"><span></span><span></span><span></span></span><strong>MINIVERSO<span>.</span></strong></a>
+        <div class="landing-actions">
+          <button id="show-register-button" class="landing-create" type="button">Criar conta</button>
+          <button id="show-login-button" class="landing-login" type="button">Já tenho conta</button>
+          <button class="theme-toggle" data-theme-toggle type="button" aria-label="Ativar tema escuro"><span aria-hidden="true">☾</span></button>
         </div>
-        <form id="register-form" class="auth-form">
-          <label for="register-email">Seu e-mail</label>
-          <input id="register-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" />
-          <label for="register-password">Crie uma senha</label>
-          <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Pelo menos 8 caracteres" />
-          <label for="register-password-confirm">Confirme sua senha</label>
-          <input id="register-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Digite a senha novamente" />
-          <button class="button button-primary" type="submit">Criar minha conta</button>
-        </form>
-        <form id="login-form" class="auth-form" hidden>
-          <label for="login-email">Seu e-mail</label>
-          <input id="login-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" />
-          <label for="login-password">Sua senha</label>
-          <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Digite sua senha" />
-          <button class="button button-primary" type="submit">Entrar</button>
-        </form>
-        <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
-        <p class="auth-privacy">Sua senha é protegida e nunca é armazenada em texto legível.</p>
+      </header>
+
+      <section id="inicio" class="landing-hero">
+        <div class="landing-hero-copy">
+          <p class="landing-kicker"><span>✦</span> FEITO PARA QUEM COLECIONA</p>
+          <h1>Sua coleção inteira.<br /><span>Organizada do seu jeito.</span></h1>
+          <p class="landing-intro">Cadastre suas miniaturas, encontre informações pelo código da embalagem e planeje cada posição dos seus expositores em um único lugar.</p>
+          <button class="landing-primary" data-open-register type="button">Começar minha coleção <span>→</span></button>
+          <p class="landing-note">Comece gratuitamente · Organize no seu ritmo</p>
+        </div>
+        <div class="landing-preview" aria-label="Prévia das ferramentas do Miniverso">
+          <div class="preview-window">
+            <div class="preview-top"><span class="preview-logo">M.</span><span>Minha coleção</span><i></i><i></i><i></i></div>
+            <div class="preview-stats"><div><small>MINIATURAS</small><strong>248</strong></div><div><small>EM EXPOSIÇÃO</small><strong>96</strong></div><div><small>EXPOSITORES</small><strong>4</strong></div></div>
+            <div class="preview-toolbar"><b>Últimas miniaturas</b><span>Buscar coleção…</span></div>
+            <div class="preview-cars"><article><div class="preview-car red"><i></i><b></b></div><small>HOT WHEELS</small><strong>Porsche 911 GT3</strong><span>1:64 · Premium</span></article><article><div class="preview-car blue"><i></i><b></b></div><small>MINI GT</small><strong>Nissan Skyline</strong><span>1:64 · Kaido House</span></article><article><div class="preview-car yellow"><i></i><b></b></div><small>MATCHBOX</small><strong>Mercedes 300 SL</strong><span>1:64 · Collectors</span></article></div>
+          </div>
+          <div class="preview-badge"><span>⌕</span><div><small>BUSCA PELO CÓDIGO</small><strong>Dados preenchidos automaticamente</strong></div></div>
+        </div>
       </section>
-      <aside class="auth-art" aria-hidden="true"><span>01</span><div class="auth-orbit orbit-one"></div><div class="auth-orbit orbit-two"></div><div class="auth-car-shape"><i></i><b></b></div><p>UM PEQUENO UNIVERSO<br />PARA CADA HISTÓRIA.</p></aside>
+
+      <section class="landing-overview" aria-labelledby="overview-title">
+        <div class="overview-heading"><p>SEU ACERVO, SOB CONTROLE</p><h2 id="overview-title">Tudo o que o colecionador precisa para cuidar do seu universo.</h2></div>
+        <div class="overview-grid">
+          <article><span>01</span><div class="overview-icon">◇</div><h3>Cadastre sua coleção</h3><p>Guarde fotos, códigos, fabricante, escala, série, condição e todos os detalhes de cada miniatura.</p></article>
+          <article><span>02</span><div class="overview-icon">⌕</div><h3>Encontre dados e fotos</h3><p>Use o código da embalagem para preencher informações e buscar imagens, inclusive em massa após importar um CSV.</p></article>
+          <article><span>03</span><div class="overview-icon">▦</div><h3>Planeje seus expositores</h3><p>Crie vitrines com linhas e colunas, arraste as miniaturas e teste a organização antes de aplicar.</p></article>
+          <article><span>04</span><div class="overview-icon">◎</div><h3>Encontre qualquer peça</h3><p>Pesquise e filtre por fabricante ou localização para saber o que está exposto e o que está guardado.</p></article>
+        </div>
+      </section>
+
+      <section class="landing-cta"><p>PRONTO PARA ORGANIZAR?</p><h2>Dê à sua coleção o espaço que ela merece.</h2><button class="landing-primary" data-open-register type="button">Criar minha conta <span>→</span></button></section>
+      <footer class="landing-footer"><span>MINIVERSO.</span><p>Seu acervo, suas histórias, seu espaço.</p></footer>
+
+      <div id="landing-auth-panel" class="landing-auth-overlay" hidden>
+        <section class="auth-card" aria-labelledby="auth-title">
+          <button id="close-auth-panel" class="auth-close" type="button" aria-label="Fechar">×</button>
+          <div class="auth-brand"><span class="brand-mark"><span></span><span></span><span></span></span><strong>MINIVERSO<span>.</span></strong></div>
+          <p class="eyebrow">SUA COLEÇÃO, SEU ESPAÇO</p>
+          <h1 id="auth-title">Acesse seu<br /><span>Miniverso.</span></h1>
+          <div class="auth-tabs" role="tablist" aria-label="Escolha como acessar"><button id="auth-register-tab" class="active" type="button" role="tab">Criar conta</button><button id="auth-login-tab" type="button" role="tab">Já tenho conta</button></div>
+          <form id="register-form" class="auth-form"><label for="register-email">Seu e-mail</label><input id="register-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" /><label for="register-password">Crie uma senha</label><input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Pelo menos 8 caracteres" /><label for="register-password-confirm">Confirme sua senha</label><input id="register-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="Digite a senha novamente" /><button class="button button-primary" type="submit">Criar minha conta</button></form>
+          <form id="login-form" class="auth-form" hidden><label for="login-email">Seu e-mail</label><input id="login-email" name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com" /><label for="login-password">Sua senha</label><input id="login-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Digite sua senha" /><button class="button button-primary" type="submit">Entrar</button></form>
+          <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p><p class="auth-privacy">Sua senha é protegida e nunca é armazenada em texto legível.</p>
+        </section>
+      </div>
     </main>
 
     <div id="app-shell" class="app-shell" hidden>
