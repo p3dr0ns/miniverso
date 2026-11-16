@@ -537,6 +537,21 @@ html[data-theme="dark"] .mini-detail-location { border-color: #334158; }
 .csv-summary strong { display: block; color: #e84a5f; font: 700 44px/1 "Fraunces", serif; }
 .csv-summary p { margin: 8px 0; color: #263653; font-weight: 700; }
 .csv-summary small { color: #737d8e; line-height: 1.6; }
+.bulk-import-option { margin-top: 18px; padding: 13px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid #d9dfe8; border-radius: 10px; background: #f4f7fb; cursor: pointer; }
+.bulk-import-option input { margin-top: 3px; accent-color: #e84a5f; }
+.bulk-import-option span { display: grid; gap: 3px; }
+.bulk-import-option b { color: #263653; font-size: 11px; }
+.bulk-import-option small { font-size: 9px; }
+.bulk-progress { padding: 24px 25px 10px; }
+.bulk-progress-copy { display: flex; justify-content: space-between; gap: 15px; color: #263653; font-size: 11px; }
+.bulk-progress-copy span { color: #737d8e; white-space: nowrap; }
+.bulk-progress-track { height: 9px; margin: 14px 0; overflow: hidden; border-radius: 999px; background: #e8eaf0; }
+.bulk-progress-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #e84a5f, #f9b44d); transition: width .2s ease; }
+.bulk-progress p { min-height: 32px; margin: 0; color: #737d8e; font-size: 10px; line-height: 1.6; }
+.bulk-result { padding: 26px 25px 8px; }
+.bulk-result strong { display: block; color: #e84a5f; font-size: 44px; line-height: 1; }
+.bulk-result p { margin: 7px 0; color: #263653; font-weight: 800; }
+.bulk-result small { color: #737d8e; line-height: 1.6; }
 .account-trigger { cursor: pointer; }
 button.desktop-account { background: transparent; }
 .account-menu { position: fixed; z-index: 30; top: 68px; right: 4.5%; width: min(330px, calc(100vw - 24px)); padding: 8px; border: 1px solid #d8d5cd; border-radius: 15px; background: #fff; box-shadow: 0 20px 50px #17284a2e; }
@@ -584,7 +599,9 @@ html[data-theme="dark"] .available-item { background: #202d40; }
 html[data-theme="dark"] .available-item.selected { background: #402731; }
 html[data-theme="dark"] .modal { border-color: #3a485d; background: #172231; box-shadow: 0 24px 80px #0009; }
 html[data-theme="dark"] .modal-head, html[data-theme="dark"] .modal-actions { border-color: #334158; }
-html[data-theme="dark"] .modal-head h2, html[data-theme="dark"] .csv-summary p { color: #f1f4f8; }
+html[data-theme="dark"] .modal-head h2, html[data-theme="dark"] .csv-summary p, html[data-theme="dark"] .bulk-progress-copy, html[data-theme="dark"] .bulk-result p, html[data-theme="dark"] .bulk-import-option b { color: #f1f4f8; }
+html[data-theme="dark"] .bulk-import-option { border-color: #3a485d; background: #121c29; }
+html[data-theme="dark"] .bulk-progress-track { background: #2a3749; }
 html[data-theme="dark"] .modal-close { border-color: #41516a; background: #202d40; color: #d5ddea; }
 html[data-theme="dark"] .modal-form { background: #172231; }
 html[data-theme="dark"] .form-section-title { border-color: #344158; }
@@ -622,7 +639,7 @@ html[data-theme="dark"] .catalog-lookup>span { color: #9caabd; }
 /* Interface confortável: tipografia única, escala maior e formulários em blocos claros */
 :root { font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 16px; }
 body, button, input, select, textarea { font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
-h1, .section-toolbar h2, .card-title, .modal-head h2, .showcase-summary h2, .available-head h3, .stat-card strong, .csv-summary strong { font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
+h1, .section-toolbar h2, .card-title, .modal-head h2, .showcase-summary h2, .available-head h3, .stat-card strong, .csv-summary strong, .bulk-result strong { font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
 h1 { font-size: clamp(38px, 4.5vw, 62px); line-height: 1.04; letter-spacing: -2.2px; font-weight: 800; }
 .heading-copy { font-size: 15px; line-height: 1.65; }
 .eyebrow, .side-label, .stat-label, .page-footer { font-size: 10px; }

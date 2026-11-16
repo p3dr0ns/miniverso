@@ -82,12 +82,16 @@ function csvRecords(text) {
 }
 
 function confirmCsvImport(records, ignored) {
-  modal(`<div class="modal-head"><div><p class="eyebrow">IMPORTAR COLEÇÃO</p><h2>Confirmar arquivo CSV</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="csv-summary"><strong>${records.length}</strong><p>miniatura(s) pronta(s) para importar${ignored.length ? ` · ${ignored.length} linha(s) sem nome serão ignoradas` : ""}.</p><small>Os itens serão adicionados à coleção atual. Fotos e posições em expositores não são importadas.</small></div><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" id="confirm-csv-import" type="button">Importar coleção</button></div>`, true);
+  const withCode = records.filter((record) => record.catalogCode).length;
+  modal(`<div class="modal-head"><div><p class="eyebrow">IMPORTAR COLEÇÃO</p><h2>Confirmar arquivo CSV</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="csv-summary"><strong>${records.length}</strong><p>miniatura(s) pronta(s) para importar${ignored.length ? ` · ${ignored.length} linha(s) sem nome serão ignoradas` : ""}.</p><small>Os itens serão adicionados à coleção atual. Posições em expositores não são importadas.</small>${withCode ? `<label class="bulk-import-option"><input id="enrich-after-import" type="checkbox" checked /><span><b>Buscar fotos e dados automaticamente</b><small>${withCode} item(ns) possuem código para consulta.</small></span></label>` : ""}</div><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" id="confirm-csv-import" type="button">Importar coleção</button></div>`, true);
   $("#confirm-csv-import").addEventListener("click", () => {
+    const enrichAfterImport = Boolean($("#enrich-after-import")?.checked);
     const previous = state.minis;
     state.minis = [...records, ...state.minis];
     if (!saveState()) { state.minis = previous; return; }
-    closeModal(); renderCollection(); if (activeView === "planner") renderPlanner(); showToast(`${records.length} miniatura(s) importada(s).`);
+    closeModal(); renderCollection(); if (activeView === "planner") renderPlanner();
+    if (enrichAfterImport) enrichCollection(records.map((record) => record.id), true);
+    else showToast(`${records.length} miniatura(s) importada(s).`);
   });
 }
 
@@ -99,6 +103,94 @@ function exportCollectionCsv() {
   const blob = new Blob(["\uFEFF", lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `miniverso-colecao-${new Date().toISOString().slice(0,10)}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   showToast(`${state.minis.length} miniatura(s) exportada(s).`);
+}
+
+const CATALOG_FILL_FIELDS = ["maker", "vehicleBrand", "model", "scale", "color", "releaseYear", "category", "series", "seriesNumber", "wheelType", "steeringSide", "editionSize", "exclusivity"];
+
+function applyCatalogData(mini, item) {
+  let changed = false;
+  let addedPhoto = false;
+  CATALOG_FILL_FIELDS.forEach((field) => {
+    if (!String(mini[field] || "").trim() && typeof item[field] === "string" && item[field].trim()) {
+      mini[field] = item[field].trim();
+      changed = true;
+    }
+  });
+  if (!mini.photo && typeof item.photo === "string" && item.photo.trim()) {
+    mini.photo = item.photo.trim();
+    changed = true;
+    addedPhoto = true;
+  }
+  if (changed) mini.updatedAt = new Date().toISOString();
+  return { changed, addedPhoto };
+}
+
+function enrichCollection(ids = null, startImmediately = false) {
+  const selectedIds = ids ? new Set(ids) : null;
+  const eligible = state.minis.filter((mini) => (!selectedIds || selectedIds.has(mini.id)) && !mini.photo && String(mini.catalogCode || "").trim());
+  const withoutCode = state.minis.filter((mini) => (!selectedIds || selectedIds.has(mini.id)) && !mini.photo && !String(mini.catalogCode || "").trim()).length;
+  if (!eligible.length) {
+    showToast(withoutCode ? "Nenhum item sem foto possui código para consulta." : "Todas as miniaturas com código já possuem foto.");
+    return;
+  }
+
+  const begin = () => {
+    const userId = currentUserId;
+    let cancelled = false;
+    let completed = 0;
+    let photos = 0;
+    let updated = 0;
+    let notFound = 0;
+    let failures = 0;
+    modal(`<div class="modal-head"><div><p class="eyebrow">CATÁLOGO MINIVERSO</p><h2>Buscando fotos em massa</h2></div></div><div class="bulk-progress"><div class="bulk-progress-copy"><strong id="bulk-progress-label">Preparando consulta…</strong><span id="bulk-progress-count">0 de ${eligible.length}</span></div><div class="bulk-progress-track"><i id="bulk-progress-bar"></i></div><p id="bulk-progress-detail">Os dados já preenchidos serão preservados.</p></div><div class="modal-actions"><button class="button button-quiet" id="cancel-bulk-enrichment" type="button">Cancelar</button></div>`, true);
+    $("#cancel-bulk-enrichment").addEventListener("click", () => { cancelled = true; $("#cancel-bulk-enrichment").disabled = true; $("#bulk-progress-detail").textContent = "Encerrando as consultas em andamento…"; });
+
+    const refreshProgress = (name) => {
+      if (!$("#bulk-progress-bar")) return;
+      $("#bulk-progress-bar").style.width = `${Math.round((completed / eligible.length) * 100)}%`;
+      $("#bulk-progress-count").textContent = `${completed} de ${eligible.length}`;
+      $("#bulk-progress-label").textContent = completed === eligible.length ? "Consulta concluída" : `Consultando ${name || "catálogo"}`;
+    };
+
+    let nextIndex = 0;
+    const worker = async () => {
+      while (!cancelled && currentUserId === userId) {
+        const index = nextIndex++;
+        if (index >= eligible.length) return;
+        const mini = eligible[index];
+        try {
+          const item = await findCatalogItem(mini.catalogCode);
+          if (!item) notFound += 1;
+          else {
+            const result = applyCatalogData(mini, item);
+            if (result.changed) updated += 1;
+            if (result.addedPhoto) photos += 1;
+          }
+        } catch {
+          failures += 1;
+        } finally {
+          completed += 1;
+          refreshProgress(mini.name);
+          if (completed % 5 === 0) saveState();
+        }
+      }
+    };
+
+    Promise.all(Array.from({ length: Math.min(3, eligible.length) }, worker)).then(() => {
+      if (currentUserId !== userId) return;
+      saveState();
+      renderCollection();
+      if (activeView === "planner") renderPlanner();
+      const stopped = cancelled && completed < eligible.length;
+      modal(`<div class="modal-head"><div><p class="eyebrow">CATÁLOGO MINIVERSO</p><h2>${stopped ? "Busca interrompida" : "Busca concluída"}</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="bulk-result"><strong>${photos}</strong><p>foto(s) adicionada(s)</p><small>${updated} item(ns) receberam dados · ${notFound} código(s) não encontrado(s)${failures ? ` · ${failures} falha(s) de conexão` : ""}${stopped ? ` · ${eligible.length - completed} não consultado(s)` : ""}.</small></div><div class="modal-actions"><button class="button button-primary" data-modal-close type="button">Concluir</button></div>`, true);
+    });
+  };
+
+  if (startImmediately) begin();
+  else {
+    modal(`<div class="modal-head"><div><p class="eyebrow">ATUALIZAÇÃO EM MASSA</p><h2>Buscar fotos da coleção?</h2></div><button class="modal-close" data-modal-close aria-label="Fechar">×</button></div><div class="csv-summary"><strong>${eligible.length}</strong><p>miniatura(s) sem foto possuem código para consulta.</p><small>Fotos e campos vazios serão preenchidos pelo catálogo. Informações que você já cadastrou não serão substituídas.${withoutCode ? ` ${withoutCode} item(ns) sem código serão ignorados.` : ""}</small></div><div class="modal-actions"><button class="button button-quiet" data-modal-close type="button">Cancelar</button><button class="button button-primary" id="start-bulk-enrichment" type="button">Buscar agora</button></div>`, true);
+    $("#start-bulk-enrichment").addEventListener("click", begin);
+  }
 }
 
 function loadState() {
@@ -822,6 +914,7 @@ $("#empty-add-button").addEventListener("click", () => openMiniForm());
 $$('[data-theme-toggle]').forEach((button) => button.addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")));
 applyTheme(document.documentElement.dataset.theme);
 $("#import-csv-button").addEventListener("click", () => $("#csv-file-input").click());
+$("#enrich-collection-button").addEventListener("click", () => { $("#account-menu").hidden = true; enrichCollection(); });
 $("#export-csv-button").addEventListener("click", exportCollectionCsv);
 $$('[data-account-trigger]').forEach((button) => button.addEventListener("click", (event) => {
   event.stopPropagation(); const menu = $("#account-menu"); menu.hidden = !menu.hidden;
