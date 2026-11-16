@@ -17,7 +17,11 @@ Este arquivo acompanha as fontes avaliadas para um futuro catálogo pesquisável
 
 ## Integração ativa
 
-A busca por código consulta primeiro o catálogo colaborativo do Miniverso. Quando não encontra um registro, usa a API MediaWiki da Hot Wheels Wiki apenas para localizar uma página textual correspondente. O resultado mostra link, origem e licença CC BY-SA 3.0; imagens não são copiadas, pois podem ter licenças próprias. hobbyDB, Orange Track Diecast, HotApi e Hotwheels-Data permanecem apenas como referências até existir licença ou autorização adequada.
+O catálogo canônico é gerado pelo script `scripts/validate-wiki-catalog.mjs` a partir das listas anuais de 2015 a 2026 da Hot Wheels Wiki. Código, modelo, ano, numeração, categoria, série e imagem são extraídos da mesma linha da lista anual, evitando associar uma foto apenas pela semelhança do nome. Cada registro preserva a página de origem e a atribuição CC BY-SA 3.0.
+
+O arquivo gerado fica em `data/catalogo-validado.json`. O comando `npm run validate:catalog` refaz a auditoria e o comando `npm run import:catalog` valida e substitui o catálogo de referência no Cloudflare D1. A base CSV antiga foi mantida somente para comparação e não é mais usada como fonte canônica.
+
+hobbyDB, Orange Track Diecast, HotApi e Hotwheels-Data permanecem apenas como referências até existir licença ou autorização adequada.
 
 ## Esquema de referência
 

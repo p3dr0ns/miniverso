@@ -10,7 +10,8 @@
     "test": "node --test test/*.test.js scripts/*.test.mjs",
     "setup": "node scripts/setup.mjs",
     "deploy": "node scripts/deploy.mjs",
-    "import:catalog": "node scripts/import-reference-catalog.mjs"
+    "import:catalog": "node scripts/validate-wiki-catalog.mjs --apply",
+    "validate:catalog": "node scripts/validate-wiki-catalog.mjs"
   },
   "devDependencies": {
     "miniflare": "^5.20261113.0-beta",
