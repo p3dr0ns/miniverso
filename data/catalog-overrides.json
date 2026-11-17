@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "code": "JBM40",
+      "name": "Toyota AE86 Sprinter Trueno & Fleet Street",
+      "maker": "Hot Wheels",
+      "manufacturer": "Mattel",
+      "scale": "1:64",
+      "releaseYear": "2025",
+      "category": "Hot Wheels Premium / Car Culture",
+      "series": "Team Transport",
+      "seriesNumber": "84",
+      "color": "Vermelho e preto",
+      "contents": [
+        "Toyota AE86 Sprinter Trueno",
+        "Fleet Street"
+      ],
+      "ean": "194735263639",
+      "photo": "https://www.hwcgarage.com/_img/rs:fit:1280:1280/el:1/q:80/plain/s3://media-hwc/public/90789/01_529951e3-8274-47ae-aad4-8f67da0d87f5.webp",
+      "sourceName": "HWC Garage",
+      "sourceUrl": "https://www.hwcgarage.com/en/vehicle/toyota-ae86-sprinter-trueno-2025-rouge-jbm40",
+      "verifiedSources": [
+        "https://www.biccamera.com/bc/item/14424324/",
+        "https://www.ltoys.lu/en/product/201582",
+        "https://www.minimundi.com.br/miniatura-caminhao-fleet-street-toyota-ae86-sprinter-trueno-team-transporter-hot-wheels-premium-jbm40-flf56"
+      ]
+    }
+  ]
+}

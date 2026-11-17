@@ -5,6 +5,7 @@ import { parseCsv } from "./import-reference-catalog.mjs";
 
 const YEARS = Array.from({ length: 12 }, (_, index) => 2015 + index);
 const RAW_SOURCE = join(ROOT, "data", "base-de-dados-hw.csv");
+const OVERRIDES_SOURCE = join(ROOT, "data", "catalog-overrides.json");
 const OUTPUT = join(ROOT, "data", "catalogo-validado.json");
 const REPORT = join(ROOT, "data", "CATALOG_VALIDATION_REPORT.md");
 const SQL_OUTPUT = join(ROOT, ".wrangler", "catalog-wiki-validation.sql");
@@ -50,8 +51,10 @@ function rawByCode(source) {
 
 export async function validateCatalog({ apply = false } = {}) {
   const raw = rawByCode(await readFile(RAW_SOURCE, "utf8"));
+  const overrides = JSON.parse(await readFile(OVERRIDES_SOURCE, "utf8"));
   const yearly = await Promise.all(YEARS.map(async (year) => ({ year, items: parseYear(await fetchYear(year), year) })));
   const byCode = new Map(); for (const { items } of yearly) for (const item of items) { if (!byCode.has(item.code)) byCode.set(item.code, []); const variants = byCode.get(item.code); if (!variants.some((value) => value.releaseYear === item.releaseYear && normalize(value.name) === normalize(item.name))) variants.push(item); }
+  for (const item of overrides.items || []) byCode.set(item.code.toUpperCase(), [item]);
   const changed = [], missing = [];
   for (const [code, variants] of byCode) { const before = raw.get(code), primary = variants[0]; if (!before) missing.push(code); else if (normalize(before.name) !== normalize(primary.name) || before.year !== primary.releaseYear) changed.push({ code, before: `${before.name} (${before.year})`, after: `${primary.name} (${primary.releaseYear})` }); }
   const validated = [...byCode].map(([code, variants]) => ({ code, primary: variants[0], variants, images: [...new Set(variants.map((item) => item.photo).filter(Boolean))] })).sort((a, b) => a.code.localeCompare(b.code));

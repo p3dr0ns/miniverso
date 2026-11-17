@@ -1,9 +1,9 @@
 # Relatório de validação do catálogo
 
-Gerado em 2026-11-16T22:23:11.525Z.
+Gerado em 2026-11-16T22:30:53.477Z.
 
-- Códigos validados: 5368
-- Registros antigos divergentes: 1920
+- Códigos validados: 5369
+- Registros antigos divergentes: 1921
 - Códigos validados ausentes na base antiga: 3139
 
 ## Divergências corrigidas
@@ -1930,3 +1930,4 @@ Gerado em 2026-11-16T22:23:11.525Z.
 | JJH77 | 67 Lotus Type 49 (2026) | Ridge Crest GT (2026) |
 | JJH79 | Bone Shaker (2026) | Custom Vanster (2026) |
 | JJH78 | Volvo 240 Drift Wagon (2026) | Porsche 908-3 (2026) |
+| JBM40 | Porsche 917K & Volkswagen Transporter T1 Pickup (2025) | Toyota AE86 Sprinter Trueno & Fleet Street (2025) |
